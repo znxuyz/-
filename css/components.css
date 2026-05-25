@@ -1,0 +1,342 @@
+/* ============================================
+   按鈕系統
+============================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--forest);
+  color: var(--paper);
+}
+
+.btn-primary:hover {
+  background: var(--forest-deep);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-accent {
+  background: var(--sunset);
+  color: var(--paper);
+}
+
+.btn-accent:hover {
+  background: var(--plum);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1.5px solid var(--paper-shadow);
+}
+
+.btn-ghost:hover {
+  background: var(--paper-warm);
+  border-color: var(--forest-light);
+}
+
+.btn-block {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+}
+
+.btn-large {
+  padding: 14px 32px;
+  font-size: 15px;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* ============================================
+   寵物選擇對話框
+============================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 22, 18, 0.7);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-overlay.active {
+  display: flex;
+  animation: modalFadeIn 0.3s var(--ease-out);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: var(--paper-warm);
+  border-radius: 12px;
+  padding: 36px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: modalSlideUp 0.4s var(--ease-out);
+}
+
+@keyframes modalSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--forest-deep);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.modal-subtitle {
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+  margin-bottom: 28px;
+  letter-spacing: 0.05em;
+}
+
+.pet-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.pet-option {
+  background: var(--paper);
+  border: 2px solid var(--paper-shadow);
+  border-radius: 10px;
+  padding: 18px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+}
+
+.pet-option:hover {
+  border-color: var(--forest);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.pet-option.selected {
+  border-color: var(--gold);
+  background: linear-gradient(135deg, rgba(212, 164, 70, 0.1), rgba(201, 99, 63, 0.05));
+  box-shadow: 0 0 0 3px rgba(212, 164, 70, 0.2);
+}
+
+.pet-option-icon {
+  font-size: 44px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.pet-option-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.pet-option-desc {
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* ============================================
+   積分規則編輯
+============================================ */
+.rules-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rule-editor-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 40px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: var(--paper);
+  border-radius: 6px;
+  border: 1px solid var(--paper-shadow);
+}
+
+.rule-editor-input {
+  padding: 8px 12px;
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  background: var(--paper-warm);
+}
+
+.rule-editor-input:focus {
+  outline: none;
+  border-color: var(--forest);
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: none;
+  background: var(--paper-warm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--ink-muted);
+  transition: all 0.2s var(--ease-out);
+}
+
+.icon-btn:hover {
+  background: var(--sick);
+  color: var(--paper);
+}
+
+/* ============================================
+   訊息提示
+============================================ */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--forest-deep);
+  color: var(--paper);
+  padding: 14px 24px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s var(--ease-out);
+  z-index: 2000;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  border-left: 4px solid var(--gold);
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ============================================
+   空白狀態 / 工具列
+============================================ */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--ink-muted);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--paper);
+  border-radius: 6px;
+}
+
+.toolbar-search {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--paper-warm);
+}
+
+/* ============================================
+   子分頁(課堂工具 / 班級管理 共用)
+============================================ */
+.sub-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  padding: 4px;
+  background: var(--paper-warm);
+  border-radius: 8px;
+  width: fit-content;
+  box-shadow: var(--shadow-sm);
+}
+
+.sub-tab {
+  background: transparent;
+  border: none;
+  color: var(--ink-soft);
+  padding: 8px 18px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all 0.2s var(--ease-out);
+}
+
+.sub-tab:hover {
+  background: var(--paper);
+}
+
+.sub-tab.active {
+  background: var(--forest);
+  color: var(--paper);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.sub-view {
+  display: none;
+}
+
+.sub-view.active {
+  display: block;
+}

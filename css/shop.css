@@ -1,0 +1,338 @@
+/* ============================================
+   守護獸商店
+============================================ */
+.shop-header-card {
+  background: linear-gradient(135deg, var(--forest-deep) 0%, var(--forest) 100%);
+  color: var(--paper);
+  padding: 24px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.shop-header-card::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 50%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(212, 164, 70, 0.2) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.shop-customer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+
+.shop-customer-avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+}
+
+.shop-customer-info .sci-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.shop-customer-info .sci-pet {
+  font-size: 13px;
+  color: var(--moss);
+}
+
+.shop-purse {
+  text-align: right;
+  position: relative;
+}
+
+.shop-purse-label {
+  font-size: 11px;
+  color: var(--moss);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.shop-purse-value {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--gold);
+}
+
+.shop-categories {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.shop-cat-tab {
+  padding: 8px 18px;
+  background: var(--paper-warm);
+  border: 1.5px solid var(--paper-shadow);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  transition: all 0.2s var(--ease-out);
+}
+
+.shop-cat-tab.active {
+  background: var(--forest);
+  color: var(--paper);
+  border-color: var(--forest);
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.shop-item {
+  background: var(--paper-warm);
+  border: 1.5px solid var(--paper-shadow);
+  border-radius: 8px;
+  padding: 20px 16px;
+  text-align: center;
+  transition: all 0.2s var(--ease-out);
+  box-shadow: var(--shadow-sm);
+}
+
+.shop-item.affordable {
+  cursor: pointer;
+}
+
+.shop-item.affordable:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.shop-item.unaffordable {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shop-item.owned {
+  border-color: var(--moss);
+  background: linear-gradient(135deg, rgba(123, 166, 138, 0.15), var(--paper-warm));
+}
+
+.shop-item-icon {
+  font-size: 44px;
+  margin-bottom: 8px;
+}
+
+.shop-item-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.shop-item-desc {
+  font-size: 11px;
+  color: var(--ink-muted);
+  min-height: 30px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.shop-item-price {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--sunset);
+  margin-bottom: 10px;
+}
+
+.shop-item-price::before {
+  content: "✦ ";
+  color: var(--gold);
+}
+
+.shop-item-action {
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.shop-action-buy {
+  background: var(--sunset);
+  color: var(--paper);
+}
+
+.shop-action-equip {
+  background: var(--forest);
+  color: var(--paper);
+}
+
+.shop-action-equipped {
+  background: var(--gold);
+  color: var(--forest-deep);
+}
+
+.shop-action-disabled {
+  background: var(--paper-shadow);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.shop-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+/* 寵物配件層 */
+.pet-accessory {
+  position: absolute;
+  font-size: 28px;
+  top: -8px;
+  right: -8px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 2;
+  animation: accessoryFloat 3s ease-in-out infinite;
+}
+
+@keyframes accessoryFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.projector-pet { position: relative; }
+.selected-pet-large { position: relative; overflow: visible; }
+.student-avatar { position: relative; overflow: visible; }
+
+/* ============================================
+   班級任務
+============================================ */
+.task-create-form {
+  display: grid;
+  grid-template-columns: 2fr 3fr 100px auto;
+  gap: 10px;
+  padding: 14px;
+  background: var(--paper-warm);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+@media (max-width: 980px) {
+  .task-create-form { grid-template-columns: 1fr 1fr; }
+}
+
+.task-card {
+  background: var(--paper-warm);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+  border-left: 4px solid var(--forest);
+}
+
+.task-card.completed {
+  border-left-color: var(--gold);
+  background: linear-gradient(135deg, rgba(212, 164, 70, 0.1), var(--paper-warm));
+}
+
+.task-card.completed::before {
+  content: "✦ 已達成 ✦";
+  position: absolute;
+  top: 16px;
+  right: -40px;
+  background: var(--gold);
+  color: var(--forest-deep);
+  padding: 4px 50px;
+  transform: rotate(45deg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.task-card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--forest-deep);
+  margin-bottom: 6px;
+}
+
+.task-card-desc {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.task-progress-wrap {
+  margin-top: 14px;
+}
+
+.task-progress-bar {
+  height: 14px;
+  background: var(--paper);
+  border-radius: 7px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--paper-shadow);
+}
+
+.task-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--moss), var(--gold));
+  border-radius: 6px;
+  transition: width 0.8s var(--ease-out);
+  box-shadow: 0 0 12px rgba(212, 164, 70, 0.3);
+}
+
+.task-progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.task-reward {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--paper);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-reward-icon {
+  color: var(--sunset);
+}
+
+.task-card-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

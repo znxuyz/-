@@ -1,0 +1,154 @@
+/* ============================================
+   投影模式
+============================================ */
+.projector-view {
+  background: linear-gradient(180deg, var(--forest-deep) 0%, #0F2419 100%);
+  color: var(--paper);
+  min-height: 100vh;
+  margin: -32px;
+  padding: 40px;
+  position: relative;
+}
+
+.projector-view::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at top, rgba(212, 164, 70, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(123, 166, 138, 0.08) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+.projector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(212, 164, 70, 0.3);
+  position: relative;
+}
+
+.projector-class-name {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.projector-class-name::before {
+  content: "❋";
+  color: var(--gold);
+  margin-right: 12px;
+}
+
+.projector-meta {
+  text-align: right;
+  font-size: 14px;
+  color: var(--moss);
+}
+
+.projector-meta-large {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.projector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 24px;
+  position: relative;
+}
+
+.projector-card {
+  background: rgba(251, 246, 233, 0.05);
+  border: 1px solid rgba(212, 164, 70, 0.2);
+  border-radius: 10px;
+  padding: 20px 14px;
+  text-align: center;
+  transition: all 0.3s var(--ease-out);
+}
+
+.projector-card.flash {
+  animation: pointsFlash 1s var(--ease-out);
+}
+
+@keyframes pointsFlash {
+  0% { background: rgba(212, 164, 70, 0.3); transform: scale(1.05); }
+  100% { background: rgba(251, 246, 233, 0.05); transform: scale(1); }
+}
+
+.projector-pet {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  margin: 0 auto 14px;
+  position: relative;
+  transition: all 0.4s var(--ease-out);
+}
+
+.projector-pet.stage-0 { font-size: 36px; }
+.projector-pet.stage-1 { font-size: 42px; }
+.projector-pet.stage-2 { font-size: 48px; }
+.projector-pet.stage-3 {
+  font-size: 52px;
+  background: linear-gradient(135deg, var(--gold), var(--sunset-light));
+  box-shadow: 0 0 24px rgba(212, 164, 70, 0.6);
+  animation: legendaryPulse 3s ease-in-out infinite;
+}
+
+.projector-pet.health-mild {
+  filter: hue-rotate(-20deg) saturate(0.6);
+}
+
+.projector-pet.health-sick {
+  filter: grayscale(0.8);
+  opacity: 0.7;
+}
+
+.projector-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.projector-pet-name {
+  font-size: 12px;
+  color: var(--moss);
+  margin-bottom: 8px;
+}
+
+.projector-points {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* 漂浮積分動畫 */
+.float-points {
+  position: absolute;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--gold);
+  pointer-events: none;
+  animation: floatUp 1.5s var(--ease-out) forwards;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  z-index: 999;
+}
+
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(0.5); opacity: 0; }
+  20% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+  100% { transform: translateY(-100px) scale(1); opacity: 0; }
+}

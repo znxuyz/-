@@ -1,0 +1,231 @@
+/* ============================================
+   AI 助手
+============================================ */
+.ai-banner {
+  background: linear-gradient(135deg, #2A1A3A 0%, #4D2D5C 50%, #1F3A2E 100%);
+  color: var(--paper);
+  padding: 24px 28px;
+  border-radius: 10px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-banner::before {
+  content: "✦";
+  position: absolute;
+  font-size: 200px;
+  color: rgba(212, 164, 70, 0.1);
+  right: -30px;
+  top: -60px;
+  font-family: var(--font-display);
+}
+
+.ai-banner-content {
+  position: relative;
+  z-index: 1;
+}
+
+.ai-banner-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.ai-banner-subtitle {
+  font-size: 13px;
+  color: var(--moss);
+  letter-spacing: 0.05em;
+}
+
+.ai-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  position: relative;
+  z-index: 1;
+}
+
+.ai-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.ai-status-dot.connected { background: var(--healthy); box-shadow: 0 0 8px var(--healthy); }
+.ai-status-dot.disconnected { background: var(--sick); }
+
+.ai-form {
+  background: var(--paper-warm);
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
+}
+
+.ai-form-row {
+  margin-bottom: 16px;
+}
+
+.ai-form-label {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--forest-deep);
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+}
+
+.ai-form-input, .ai-form-textarea, .ai-form-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--paper-shadow);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.ai-form-textarea {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.ai-form-input:focus, .ai-form-textarea:focus, .ai-form-select:focus {
+  outline: none;
+  border-color: var(--plum);
+  box-shadow: 0 0 0 3px rgba(139, 58, 78, 0.08);
+}
+
+.ai-context-card {
+  background: var(--paper);
+  border-left: 3px solid var(--moss);
+  padding: 12px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+.ai-context-card strong { color: var(--forest-deep); }
+
+.ai-results {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.ai-results.active {
+  display: flex;
+}
+
+.ai-result-card {
+  background: var(--paper-warm);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  border-top: 3px solid var(--plum);
+}
+
+.ai-result-card:nth-child(3n+2) { border-top-color: var(--forest); }
+.ai-result-card:nth-child(3n) { border-top-color: var(--gold); }
+
+.ai-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.ai-result-tag {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--forest-deep);
+}
+
+.ai-result-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ai-result-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.ai-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--ink-muted);
+}
+
+.ai-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--paper-shadow);
+  border-top-color: var(--plum);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ai-error {
+  background: rgba(181, 86, 61, 0.1);
+  border-left: 3px solid var(--sick);
+  padding: 14px 16px;
+  border-radius: 4px;
+  color: var(--sick);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ai-key-setup {
+  text-align: center;
+  padding: 40px 20px;
+  background: var(--paper-warm);
+  border-radius: 8px;
+  border: 1px dashed var(--paper-shadow);
+}
+
+.ai-key-setup-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+}
+
+.ai-key-setup-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--forest-deep);
+}
+
+.ai-key-setup-desc {
+  color: var(--ink-soft);
+  font-size: 14px;
+  margin-bottom: 20px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.7;
+}
