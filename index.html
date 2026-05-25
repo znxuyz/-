@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>守護獸學園 · 班級養成系統</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+
+<!-- 樣式表 -->
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<link rel="stylesheet" href="css/tools.css">
+<link rel="stylesheet" href="css/management.css">
+<link rel="stylesheet" href="css/contact.css">
+<link rel="stylesheet" href="css/shop.css">
+<link rel="stylesheet" href="css/ai.css">
+<link rel="stylesheet" href="css/report.css">
+<link rel="stylesheet" href="css/projector.css">
+<link rel="stylesheet" href="css/settings.css">
+
+<!-- SheetJS for Excel import -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- ============================================
+     首次設定畫面
+============================================ -->
+<div id="setupView" class="setup-view">
+  <div class="setup-container">
+    <div class="setup-title">守護獸學園</div>
+    <div class="setup-subtitle">— 班 級 養 成 系 統 —</div>
+    
+    <div class="setup-step">
+      <label class="setup-label">班級名稱 <span class="setup-label-hint">例如:四年二班</span></label>
+      <input type="text" id="setupClassName" class="setup-input" placeholder="" />
+    </div>
+    
+    <div class="setup-step">
+      <label class="setup-label">老師稱呼 <span class="setup-label-hint">例如:張老師</span></label>
+      <input type="text" id="setupTeacherName" class="setup-input" placeholder="" />
+    </div>
+    
+    <div class="setup-step">
+      <label class="setup-label">學生名單 <span class="setup-label-hint">每行一位,可不填(用下方 Excel 匯入)</span></label>
+      <textarea id="setupStudents" class="setup-textarea" placeholder="王小明&#10;陳美麗&#10;林志強&#10;..."></textarea>
+    </div>
+    
+    <button class="btn btn-primary btn-block btn-large" onclick="completeSetup()">
+      開 啟 學 園
+    </button>
+    
+    <div style="margin-top: 20px; display: flex; gap: 10px; flex-direction: column;">
+      <button class="btn btn-ghost btn-small" onclick="importStudentsFromExcel()">
+        📊 從 Excel 匯入學生名單(座號 + 姓名)
+      </button>
+      <button class="btn btn-ghost btn-small" onclick="showImportTemplateHint()">
+        ❓ Excel 範本格式說明
+      </button>
+      <button class="btn btn-ghost btn-small" onclick="loadDemoData()">
+        ✦ 或載入示範資料(28 位學生 + 已養成兩週)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     主介面
+============================================ -->
+<div id="appView" class="hidden">
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark">守護獸學園</div>
+      <div class="brand-tagline">CLASSROOM · GUARDIANS</div>
+    </div>
+    
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">老師後台</button>
+      <button class="nav-tab" data-view="tools" onclick="switchView('tools')">課堂工具</button>
+      <button class="nav-tab" data-view="contact" onclick="switchView('contact')">聯絡簿</button>
+      <button class="nav-tab" data-view="management" onclick="switchView('management')">班級管理</button>
+      <button class="nav-tab" data-view="shop" onclick="switchView('shop')">商店任務</button>
+      <button class="nav-tab" data-view="ai" onclick="switchView('ai')">AI 助手</button>
+      <button class="nav-tab" data-view="projector" onclick="switchView('projector')">投影模式</button>
+      <button class="nav-tab" data-view="rules" onclick="switchView('rules')">積分規則</button>
+      <button class="nav-tab" data-view="overview" onclick="switchView('overview')">總覽報表</button>
+      <button class="nav-tab" data-view="settings" onclick="switchView('settings')">設定</button>
+    </nav>
+    
+    <div class="class-badge">
+      <span id="headerClassName" class="class-badge-name">四年二班</span>
+      <span id="headerTeacherName">張老師</span>
+    </div>
+  </header>
+  
+  <main class="app-main">
+    
+    <!-- 老師後台 -->
+    <section id="dashboardView" class="view active">
+      <div class="dashboard">
+        <!-- 左側學生列表 -->
+        <aside class="student-sidebar">
+          <div class="sidebar-header">
+            <div class="sidebar-title">本班學生</div>
+            <div class="sidebar-count" id="sidebarCount">0 位</div>
+          </div>
+          <ul class="student-list" id="studentList"></ul>
+        </aside>
+        
+        <!-- 右側操作面板 -->
+        <div class="action-panel">
+          <!-- 選中學生的展示 -->
+          <div id="selectedStudentDisplay" class="selected-student-card">
+            <div class="empty-state" style="color: var(--moss);">
+              <div class="empty-state-icon">❋</div>
+              <div>從左側選擇一位學生開始</div>
+            </div>
+          </div>
+          
+          <!-- 快速發分 -->
+          <div class="panel-card" id="quickAssignPanel" style="display:none;">
+            <div class="panel-title">發放積分</div>
+            <div class="rule-grid" id="ruleGrid"></div>
+            <div class="custom-points-row">
+              <input type="number" id="customPoints" class="custom-points-input" placeholder="自訂分數(可正可負)" />
+              <input type="text" id="customReason" class="custom-points-input" placeholder="原因(可選)" style="flex:1.5;" />
+              <button class="btn btn-accent" onclick="assignCustomPoints()">發放</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- ============================================
+         課堂工具(點名 / 抽籤 / 計時器)
+    ============================================ -->
+    <section id="toolsView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">課堂工具</div>
+          <div class="view-subtitle">日常課堂的得力助手</div>
+        </div>
+      </div>
+      
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-subtab="attendance" onclick="switchSubTab('tools', 'attendance')">點名出席</button>
+        <button class="sub-tab" data-subtab="picker" onclick="switchSubTab('tools', 'picker')">抽籤機</button>
+        <button class="sub-tab" data-subtab="timer" onclick="switchSubTab('tools', 'timer')">計時器</button>
+      </div>
+      
+      <!-- 點名出席 -->
+      <div id="attendanceSubView" class="sub-view active">
+        <div class="attendance-header">
+          <div>
+            <div class="attendance-date" id="attendanceDate">2026 年 5 月 21 日 · 星期四</div>
+            <div style="font-size: 12px; color: var(--ink-muted); margin-top: 4px;">點選狀態:✓ 出席 / ✕ 缺席 / ↻ 遲到</div>
+          </div>
+          <div class="attendance-summary" id="attendanceSummary"></div>
+        </div>
+        
+        <div class="bulk-actions">
+          <button class="btn btn-primary" onclick="bulkAttendance('present')">全部出席</button>
+          <button class="btn btn-ghost" onclick="bulkAttendance('absent')">全部清空</button>
+          <button class="btn btn-accent" onclick="awardAttendancePoints()">為出席者加 1 分</button>
+          <div style="flex:1;"></div>
+          <input type="date" id="attendanceDatePicker" class="rule-editor-input" style="max-width:160px;" onchange="changeAttendanceDate()" />
+        </div>
+        
+        <div class="attendance-grid" id="attendanceGrid"></div>
+      </div>
+      
+      <!-- 抽籤機 -->
+      <div id="pickerSubView" class="sub-view">
+        <div class="picker-stage">
+          <div class="picker-pet" id="pickerPet">✦</div>
+          <div class="picker-display" id="pickerDisplay">點下方按鈕開始</div>
+          <div class="picker-label">CHOSEN ONE</div>
+          <div class="picker-action">
+            <button class="picker-big-btn" id="pickerBtn" onclick="runPicker()">開 始 抽 籤</button>
+          </div>
+        </div>
+        
+        <div class="picker-options">
+          <span class="picker-option-label">抽幾位:</span>
+          <input type="number" id="pickerCount" class="seating-size-input" value="1" min="1" max="10" />
+          
+          <span class="picker-option-label" style="margin-left: 16px;">模式:</span>
+          <select id="pickerMode" class="rule-editor-input" style="max-width: 200px;">
+            <option value="all">所有人都可能</option>
+            <option value="no-repeat">本輪不重複</option>
+            <option value="low-points">優先積分較低</option>
+            <option value="sick-pets">優先寵物生病者</option>
+          </select>
+          
+          <div style="flex:1;"></div>
+          <button class="btn btn-ghost btn-small" onclick="resetPicker()">重置紀錄</button>
+        </div>
+        
+        <div class="panel-card" style="padding: 16px;">
+          <div style="font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 10px;">本輪已抽過</div>
+          <div id="pickerHistoryDisplay" class="picker-history">
+            <span style="color: var(--ink-muted); font-size: 13px;">尚未抽過任何學生</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 計時器 -->
+      <div id="timerSubView" class="sub-view">
+        <div class="timer-stage" id="timerStage">
+          <button class="timer-fullscreen-btn" onclick="toggleTimerFullscreen()" title="全螢幕">⛶</button>
+          <div class="timer-label" id="timerLabel">準備計時</div>
+          <div class="timer-display" id="timerDisplay">05:00</div>
+          <div class="timer-controls">
+            <button class="timer-control-btn" onclick="resetTimer()" title="重置">↻</button>
+            <button class="timer-control-btn primary" id="timerToggleBtn" onclick="toggleTimer()" title="開始/暫停">▶</button>
+            <button class="timer-control-btn" onclick="addTimerMinute()" title="+1 分鐘">+1</button>
+          </div>
+        </div>
+        
+        <div class="panel-card">
+          <div class="panel-title">快速選擇</div>
+          <div class="timer-presets">
+            <button class="timer-preset" onclick="setTimer(60)">1 分鐘</button>
+            <button class="timer-preset" onclick="setTimer(180)">3 分鐘</button>
+            <button class="timer-preset" onclick="setTimer(300)">5 分鐘</button>
+            <button class="timer-preset" onclick="setTimer(600)">10 分鐘</button>
+            <button class="timer-preset" onclick="setTimer(900)">15 分鐘</button>
+            <button class="timer-preset" onclick="setTimer(1200)">20 分鐘</button>
+          </div>
+          
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--paper-shadow);">
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">自訂時間</div>
+            <div class="timer-custom-row">
+              <input type="number" id="customMinutes" class="rule-editor-input" placeholder="分鐘" min="0" style="width:120px;" />
+              <span>分</span>
+              <input type="number" id="customSeconds" class="rule-editor-input" placeholder="秒" min="0" max="59" style="width:120px;" />
+              <span>秒</span>
+              <button class="btn btn-primary btn-small" onclick="setCustomTimer()">設定</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- ============================================
+         班級管理(座位表 / 分組)
+    ============================================ -->
+    <section id="managementView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">班級管理</div>
+          <div class="view-subtitle">座位安排與分組工具</div>
+        </div>
+      </div>
+      
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-subtab="seating" onclick="switchSubTab('management', 'seating')">座位表</button>
+        <button class="sub-tab" data-subtab="grouping" onclick="switchSubTab('management', 'grouping')">隨機分組</button>
+      </div>
+      
+      <!-- 座位表 -->
+      <div id="seatingSubView" class="sub-view active">
+        <div class="seating-toolbar">
+          <label>排數</label>
+          <input type="number" id="seatRows" class="seating-size-input" value="6" min="1" max="12" onchange="rebuildSeatingGrid()" />
+          <label>列數</label>
+          <input type="number" id="seatCols" class="seating-size-input" value="5" min="1" max="10" onchange="rebuildSeatingGrid()" />
+          <div style="flex:1;"></div>
+          <button class="btn btn-ghost btn-small" onclick="randomFillSeating()">隨機填入</button>
+          <button class="btn btn-ghost btn-small" onclick="clearSeating()">清空座位</button>
+          <input type="text" id="layoutName" class="rule-editor-input" placeholder="此座位表的名字" style="max-width: 200px;" />
+          <button class="btn btn-primary btn-small" onclick="saveSeatingLayout()">儲存座位表</button>
+        </div>
+        
+        <div class="seating-layout-wrapper">
+          <aside class="seating-pool">
+            <div class="seating-pool-title">學生池(拖曳到座位)</div>
+            <div class="seating-pool-list" id="seatingPoolList"></div>
+          </aside>
+          
+          <div class="seating-board">
+            <div class="seating-board-label">講  台</div>
+            <div class="seating-grid" id="seatingGrid"></div>
+            
+            <div class="layout-list" id="savedLayouts"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 隨機分組 -->
+      <div id="groupingSubView" class="sub-view">
+        <div class="group-controls">
+          <label>分組方式</label>
+          <div class="group-mode-toggle">
+            <button class="group-mode-btn active" data-mode="byCount" onclick="setGroupMode('byCount')">分成幾組</button>
+            <button class="group-mode-btn" data-mode="bySize" onclick="setGroupMode('bySize')">每組幾人</button>
+          </div>
+          <input type="number" id="groupParam" class="seating-size-input" value="6" min="1" max="20" />
+          
+          <label style="margin-left: 16px;">演算法</label>
+          <select id="groupAlgo" class="rule-editor-input" style="max-width: 200px;">
+            <option value="random">純隨機</option>
+            <option value="balanced">平均積分(蛇形)</option>
+            <option value="stage-mixed">階段混搭</option>
+            <option value="manual">✋ 老師手動分組</option>
+          </select>
+          
+          <div style="flex:1;"></div>
+          <button class="btn btn-accent" onclick="generateGroups()">產生分組</button>
+        </div>
+        
+        <div class="group-controls" style="background: var(--paper);">
+          <input type="text" id="groupSetName" class="rule-editor-input" placeholder="本次分組命名(例如:5/14 國語小組)" style="flex:1;" />
+          <button class="btn btn-primary btn-small" onclick="saveGroupSet()">儲存目前分組</button>
+        </div>
+        
+        <div class="groups-display" id="groupsDisplay">
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-state-icon">⌗</div>
+            <div>點上方「產生分組」開始</div>
+          </div>
+        </div>
+        
+        <div id="savedGroupsContainer"></div>
+      </div>
+    </section>
+    
+    <!-- ============================================
+         聯絡簿(含作業繳交追蹤)
+    ============================================ -->
+    <section id="contactView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">聯絡簿與作業</div>
+          <div class="view-subtitle">每日記錄、作業追蹤、家長溝通</div>
+        </div>
+      </div>
+      
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-subtab="diary" onclick="switchSubTab('contact', 'diary')">今日聯絡簿</button>
+        <button class="sub-tab" data-subtab="homework" onclick="switchSubTab('contact', 'homework')">作業繳交</button>
+      </div>
+      
+      <!-- 聯絡簿 -->
+      <div id="diarySubView" class="sub-view active">
+        <div class="contact-toolbar">
+          <div class="contact-date-display" id="contactDateDisplay">2026 年 5 月 21 日 · 星期四</div>
+          <input type="date" id="contactDatePicker" class="rule-editor-input" style="max-width:160px;" onchange="changeContactDate()" />
+          <button class="btn btn-primary btn-small" onclick="generateContactBookDraft()">從今日資料生成草稿</button>
+          <button class="btn btn-ghost btn-small" onclick="printContactBook()">列印 / 預覽</button>
+        </div>
+        
+        <div class="contact-layout">
+          <div class="contact-main">
+            <div class="contact-section">
+              <div class="contact-section-title">今日大事(自動匯整)</div>
+              <div class="contact-auto-block" id="contactAutoBlock"></div>
+            </div>
+            
+            <div class="contact-section">
+              <div class="contact-section-title">老師留言給全班</div>
+              <textarea id="teacherMessageBox" class="contact-textarea" 
+                placeholder="可以寫今天的學習重點、明日注意事項、班級活動公告..."
+                oninput="saveContactBook()"></textarea>
+            </div>
+            
+            <div class="contact-section">
+              <div class="contact-section-title">班級備註</div>
+              <textarea id="classNoteBox" class="contact-textarea" 
+                placeholder="今日特別事件、需要全班注意的事項..."
+                oninput="saveContactBook()"></textarea>
+            </div>
+          </div>
+          
+          <aside class="contact-sidebar">
+            <div class="contact-sidebar-title">個別學生備註</div>
+            <div id="studentNotesList"></div>
+          </aside>
+        </div>
+      </div>
+      
+      <!-- 作業繳交 -->
+      <div id="homeworkSubView" class="sub-view">
+        <div class="hw-create-form">
+          <input type="text" id="hwName" class="rule-editor-input" placeholder="作業名稱" />
+          <input type="text" id="hwDesc" class="rule-editor-input" placeholder="作業說明(選填)" />
+          <input type="date" id="hwDueDate" class="rule-editor-input" title="繳交日期" />
+          <input type="number" id="hwPoints" class="rule-editor-input" value="2" min="0" max="20" title="繳交可得分數" placeholder="分數" />
+          <button class="btn btn-primary btn-small" onclick="createHomework()">＋ 新增作業</button>
+        </div>
+        
+        <div id="hwList"></div>
+      </div>
+    </section>
+    
+    <!-- ============================================
+         商店任務(守護獸商店 + 班級共同任務)
+    ============================================ -->
+    <section id="shopView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">商店任務</div>
+          <div class="view-subtitle">用積分養護你的守護獸,完成全班共同目標</div>
+        </div>
+      </div>
+      
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-subtab="shop" onclick="switchSubTab('shop', 'shop')">守護獸商店</button>
+        <button class="sub-tab" data-subtab="tasks" onclick="switchSubTab('shop', 'tasks')">班級共同任務</button>
+      </div>
+      
+      <!-- 商店 -->
+      <div id="shopSubView" class="sub-view active">
+        <div class="shop-header-card" id="shopHeader">
+          <div class="empty-state" style="color: var(--moss); padding: 0;">請從下方學生切換器選擇一位學生開始購物</div>
+        </div>
+        
+        <div class="contact-toolbar" style="margin-bottom: 16px;">
+          <label style="font-size: 13px; font-weight: 600;">為哪位學生購物:</label>
+          <select id="shopStudentPicker" class="rule-editor-input" style="flex:1; max-width: 300px;" onchange="onShopStudentChange()">
+            <option value="">— 選擇學生 —</option>
+          </select>
+        </div>
+        
+        <div class="shop-categories" id="shopCategories">
+          <div class="shop-cat-tab active" data-cat="food" onclick="setShopCategory('food')">食物 · 補給</div>
+          <div class="shop-cat-tab" data-cat="accessory" onclick="setShopCategory('accessory')">配件 · 裝飾</div>
+          <div class="shop-cat-tab" data-cat="special" onclick="setShopCategory('special')">特殊 · 道具</div>
+        </div>
+        
+        <div class="shop-grid" id="shopGrid"></div>
+      </div>
+      
+      <!-- 班級任務 -->
+      <div id="tasksSubView" class="sub-view">
+        <div class="task-create-form">
+          <input type="text" id="taskName" class="rule-editor-input" placeholder="任務名稱(例:全班閱讀王)" />
+          <input type="text" id="taskReward" class="rule-editor-input" placeholder="達成獎勵(例:校外教學優先選地點)" />
+          <input type="number" id="taskTarget" class="rule-editor-input" placeholder="目標分數" min="1" />
+          <button class="btn btn-primary btn-small" onclick="createTask()">＋ 新增任務</button>
+        </div>
+        
+        <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 16px; padding: 8px 14px;">
+          ✦ 任務進度會根據全班總積分自動更新。達標後老師可手動標記為完成並發放獎勵。
+        </div>
+        
+        <div id="taskList"></div>
+      </div>
+    </section>
+    
+    <!-- ============================================
+         AI 助手
+    ============================================ -->
+    <section id="aiView" class="view">
+      <div class="ai-banner">
+        <div class="ai-banner-content">
+          <div class="ai-banner-title">AI 教師助手</div>
+          <div class="ai-banner-subtitle">CLAUDE × CLASSROOM · 評語生成、訊息潤飾、行為分析</div>
+        </div>
+        <div class="ai-status" id="aiStatus">
+          <span class="ai-status-dot disconnected"></span>
+          <span>未設定 API Key</span>
+        </div>
+      </div>
+      
+      <!-- 未設定 API Key 的引導 -->
+      <div id="aiKeySetupBox" class="ai-key-setup" style="display:none;">
+        <div class="ai-key-setup-icon">🔑</div>
+        <div class="ai-key-setup-title">尚未設定 Anthropic API Key</div>
+        <div class="ai-key-setup-desc">
+          AI 功能需要連接 Anthropic 的 Claude 模型。請先到 <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> 申請 API Key,然後在「設定」頁面貼上。<br><br>
+          API 用量採用量計費(每次評語生成約 NT$0.1-0.3 元)。最低充值 USD $5(約 NT$160),可使用很久。
+        </div>
+        <button class="btn btn-primary" onclick="switchView('settings')">前往設定填入 Key →</button>
+      </div>
+      
+      <div id="aiMainArea">
+        <div class="sub-tabs">
+          <button class="sub-tab active" data-subtab="aiComment" onclick="switchSubTab('ai', 'aiComment')">評語生成</button>
+          <button class="sub-tab" data-subtab="aiPolish" onclick="switchSubTab('ai', 'aiPolish')">訊息潤飾</button>
+          <button class="sub-tab" data-subtab="aiAnalyze" onclick="switchSubTab('ai', 'aiAnalyze')">行為觀察分析</button>
+        </div>
+        
+        <!-- 評語生成 -->
+        <div id="aiCommentSubView" class="sub-view active">
+          <div class="ai-form">
+            <div class="ai-form-row">
+              <label class="ai-form-label">選擇學生</label>
+              <select id="aiCommentStudent" class="ai-form-select" onchange="renderAiCommentContext()">
+                <option value="">— 選擇學生 —</option>
+              </select>
+              <div id="aiCommentContext"></div>
+            </div>
+            <div class="ai-form-row">
+              <label class="ai-form-label">本週/本月觀察重點(關鍵字即可,AI 會自動潤飾)</label>
+              <textarea id="aiCommentObservations" class="ai-form-textarea" 
+                placeholder="例如:閱讀心得認真、上課愛分享、跟同學相處有時衝突、數學有進步、字寫得工整..."></textarea>
+            </div>
+            <div class="ai-form-row">
+              <label class="ai-form-label">用途</label>
+              <select id="aiCommentPurpose" class="ai-form-select">
+                <option value="parent">給家長看(聯絡簿評語)</option>
+                <option value="report">學期成績單評語</option>
+                <option value="encourage">寫給學生本人鼓勵</option>
+              </select>
+            </div>
+            <button class="btn btn-accent btn-large" onclick="runAiComment()">✦ 生成評語(三種風格)</button>
+          </div>
+          <div id="aiCommentResults" class="ai-results"></div>
+        </div>
+        
+        <!-- 訊息潤飾 -->
+        <div id="aiPolishSubView" class="sub-view">
+          <div class="ai-form">
+            <div class="ai-form-row">
+              <label class="ai-form-label">原始訊息草稿</label>
+              <textarea id="aiPolishInput" class="ai-form-textarea" style="min-height: 140px;"
+                placeholder="把你想說的話寫下來,即使語氣急、不通順都沒關係,AI 會幫你潤飾成專業有溫度的版本。&#10;&#10;例如:「小明媽媽,小明今天又沒交作業,這已經是這禮拜第三次了,請您回家好好督促他」"></textarea>
+            </div>
+            <div class="ai-form-row">
+              <label class="ai-form-label">收件對象</label>
+              <select id="aiPolishAudience" class="ai-form-select">
+                <option value="parent">家長</option>
+                <option value="student">學生本人</option>
+                <option value="colleague">同事老師</option>
+                <option value="principal">校長/主任</option>
+              </select>
+            </div>
+            <div class="ai-form-row">
+              <label class="ai-form-label">情境</label>
+              <select id="aiPolishContext" class="ai-form-select">
+                <option value="report">日常聯絡 / 通知</option>
+                <option value="concern">關心 / 提醒問題</option>
+                <option value="praise">表揚 / 好消息</option>
+                <option value="apology">致歉 / 解釋誤會</option>
+                <option value="refuse">委婉拒絕</option>
+              </select>
+            </div>
+            <button class="btn btn-accent btn-large" onclick="runAiPolish()">✦ 潤飾訊息(三種語氣)</button>
+          </div>
+          <div id="aiPolishResults" class="ai-results"></div>
+        </div>
+        
+        <!-- 行為觀察分析 -->
+        <div id="aiAnalyzeSubView" class="sub-view">
+          <div class="ai-form">
+            <div class="ai-form-row">
+              <label class="ai-form-label">選擇學生</label>
+              <select id="aiAnalyzeStudent" class="ai-form-select" onchange="renderAiAnalyzeContext()">
+                <option value="">— 選擇學生 —</option>
+              </select>
+              <div id="aiAnalyzeContext"></div>
+            </div>
+            <div class="ai-form-row">
+              <label class="ai-form-label">分析範圍</label>
+              <select id="aiAnalyzeRange" class="ai-form-select">
+                <option value="14">最近兩週</option>
+                <option value="30">最近一個月</option>
+                <option value="90">最近三個月</option>
+                <option value="all">全部紀錄</option>
+              </select>
+            </div>
+            <div class="ai-form-row">
+              <label class="ai-form-label">補充說明(選填)</label>
+              <textarea id="aiAnalyzeExtra" class="ai-form-textarea"
+                placeholder="可加入系統沒記錄到的觀察。例如:家庭狀況有變化、最近被排擠、剛換到新組別..."></textarea>
+            </div>
+            <button class="btn btn-accent btn-large" onclick="runAiAnalyze()">✦ 進行行為模式分析</button>
+            <div style="font-size: 12px; color: var(--ink-muted); margin-top: 12px;">
+              ✦ 系統會自動帶入這位學生的:積分歷史、發分理由、寵物成長軌跡、出席、作業繳交、商店購買等資料給 AI 分析
+            </div>
+          </div>
+          <div id="aiAnalyzeResults" class="ai-results"></div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- 投影模式 -->
+    <section id="projectorView" class="view">
+      <div class="projector-view">
+        <div class="projector-header">
+          <div class="projector-class-name" id="projClassName">四年二班</div>
+          <div class="projector-meta">
+            <div>本班守護獸</div>
+            <div class="projector-meta-large" id="projTotalPoints">總積分 0</div>
+          </div>
+        </div>
+        <div class="projector-grid" id="projectorGrid"></div>
+      </div>
+    </section>
+    
+    <!-- 積分規則設定 -->
+    <section id="rulesView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">積分規則設定</div>
+          <div class="view-subtitle">自訂班級的獎勵與扣分機制</div>
+        </div>
+        <button class="btn btn-primary" onclick="addRule()">＋ 新增規則</button>
+      </div>
+      
+      <div class="panel-card">
+        <div class="rules-editor" id="rulesEditor"></div>
+      </div>
+    </section>
+    
+    <!-- 班級總覽 -->
+    <section id="overviewView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">總覽報表</div>
+          <div class="view-subtitle">班級整體狀態與每位學生的學期成長報告</div>
+        </div>
+      </div>
+      
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-subtab="general" onclick="switchSubTab('overview', 'general')">班級概況</button>
+        <button class="sub-tab" data-subtab="report" onclick="switchSubTab('overview', 'report')">學期成長報表</button>
+      </div>
+      
+      <!-- 班級概況 -->
+      <div id="generalSubView" class="sub-view active">
+        <div class="stats-grid" id="statsGrid"></div>
+        
+        <div class="panel-card">
+          <div class="panel-title">守護獸成長分布</div>
+          <div id="stageDistribution"></div>
+        </div>
+        
+        <div class="panel-card" style="margin-top: 16px;">
+          <div class="panel-title">需要關心的學生</div>
+          <div id="needsAttention"></div>
+        </div>
+      </div>
+      
+      <!-- 學期成長報表 -->
+      <div id="reportSubView" class="sub-view">
+        <div class="report-toolbar">
+          <span style="font-size: 13px; color: var(--ink-soft); font-weight: 600;">選擇一位學生產生個人報告:</span>
+          <div style="flex:1;"></div>
+          <button class="btn btn-ghost btn-small" onclick="downloadClassReport()">📥 下載班級總報表</button>
+        </div>
+        
+        <div class="report-student-list" id="reportStudentList"></div>
+        
+        <div id="reportContainer"></div>
+      </div>
+    </section>
+    
+    <!-- 設定 -->
+    <section id="settingsView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">設定</div>
+          <div class="view-subtitle">管理班級資料</div>
+        </div>
+      </div>
+      
+      <div class="panel-card">
+        <div class="panel-title">班級基本資料</div>
+        <div class="setup-step">
+          <label class="setup-label">班級名稱</label>
+          <input type="text" id="settingsClassName" class="setup-input" />
+        </div>
+        <div class="setup-step">
+          <label class="setup-label">老師稱呼</label>
+          <input type="text" id="settingsTeacherName" class="setup-input" />
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">儲存變更</button>
+      </div>
+      
+      <div class="panel-card" style="margin-top: 16px;">
+        <div class="panel-title">學生管理</div>
+        <div style="display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
+          <button class="btn btn-primary btn-small" onclick="importStudentsFromExcel()">📊 從 Excel 匯入</button>
+          <button class="btn btn-ghost btn-small" onclick="showImportTemplateHint()">範本格式說明</button>
+        </div>
+        <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 8px; font-weight: 600;">或手動編輯名單(每行一位):</div>
+        <textarea id="settingsStudents" class="setup-textarea" style="margin-bottom: 12px;"></textarea>
+        <div class="text-muted" style="font-size: 12px; margin-bottom: 12px;">
+          ✦ 提示:每行一位學生姓名。已存在的學生會保留寵物與積分,新增的學生會看到寵物選擇畫面。<br>
+          ✦ 使用 Excel 匯入可同時設定座號;手動編輯只能更新名字。
+        </div>
+        <button class="btn btn-primary" onclick="updateStudents()">更新學生名單</button>
+      </div>
+      
+      <div class="panel-card api-key-section" style="margin-top: 16px;">
+        <div class="panel-title">AI 助手 · API Key 設定</div>
+        <div class="api-key-input-row">
+          <input type="password" id="apiKeyInput" class="setup-input" placeholder="sk-ant-..." autocomplete="off" />
+          <button class="btn btn-ghost btn-small" onclick="toggleApiKeyVisibility()">顯示</button>
+          <button class="btn btn-primary btn-small" onclick="saveApiKey()">儲存</button>
+          <button class="btn btn-ghost btn-small" onclick="testApiKey()">測試連線</button>
+        </div>
+        <div class="api-key-hint">
+          ✦ 請至 <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> 申請 API Key,最低充值 USD $5(約 NT$160)。<br>
+          ✦ <strong>安全提示</strong>:Key 只存於本機瀏覽器,不會上傳雲端。在公用電腦使用後請按「清除 API Key」。<br>
+          ✦ 模型選擇:
+          <select id="aiModelSelect" class="setup-input" style="display:inline-block; width: 280px; margin-left: 8px;" onchange="saveAiModel()">
+            <option value="claude-sonnet-4-6">Sonnet 4.6(推薦,評語/分析品質佳)</option>
+            <option value="claude-haiku-4-5-20251001">Haiku 4.5(便宜快速,日常用)</option>
+            <option value="claude-opus-4-7">Opus 4.7(最強,重要報告用)</option>
+          </select>
+          <button class="btn btn-ghost btn-small" onclick="clearApiKey()" style="color: var(--sick); margin-left: 8px;">清除 API Key</button>
+        </div>
+      </div>
+      
+      <div class="panel-card" style="margin-top: 16px;">
+        <div class="panel-title" style="color: var(--sick);">危險區</div>
+        <div class="text-muted" style="font-size: 13px; margin-bottom: 12px;">
+          清除所有資料後將無法復原。
+        </div>
+        <button class="btn btn-ghost" onclick="resetAll()" style="border-color: var(--sick); color: var(--sick);">
+          清除所有資料
+        </button>
+      </div>
+    </section>
+    
+  </main>
+</div>
+
+<!-- ============================================
+     寵物選擇對話框
+============================================ -->
+<div id="petPickerModal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">為 <span id="petPickerStudent" style="color: var(--sunset);">學生</span> 選擇守護獸</div>
+    <div class="modal-subtitle">— 台 灣 山 林 八 神 —</div>
+    <div class="pet-grid" id="petPickerGrid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('petPickerModal')">稍後決定</button>
+      <button class="btn btn-primary" id="petPickerConfirm" onclick="confirmPetSelection()">確認選擇</button>
+    </div>
+  </div>
+</div>
+
+<!-- 訊息提示 -->
+<div id="toast" class="toast"></div>
+
+
+<!-- 應用程式邏輯(載入順序很重要) -->
+<script src="js/01-constants.js"></script>
+<script src="js/02-state.js"></script>
+<script src="js/03-storage.js"></script>
+<script src="js/04-utils.js"></script>
+<script src="js/05-pet-engine.js"></script>
+<script src="js/06-ai.js"></script>
+<script src="js/07-excel.js"></script>
+<script src="js/10-nav.js"></script>
+<script src="js/feature-setup.js"></script>
+<script src="js/feature-students.js"></script>
+<script src="js/feature-dashboard.js"></script>
+<script src="js/feature-attendance.js"></script>
+<script src="js/feature-picker.js"></script>
+<script src="js/feature-timer.js"></script>
+<script src="js/feature-seating.js"></script>
+<script src="js/feature-grouping.js"></script>
+<script src="js/feature-contact-book.js"></script>
+<script src="js/feature-homework.js"></script>
+<script src="js/feature-shop.js"></script>
+<script src="js/feature-class-tasks.js"></script>
+<script src="js/feature-ai-features.js"></script>
+<script src="js/feature-projector.js"></script>
+<script src="js/feature-overview.js"></script>
+<script src="js/feature-report.js"></script>
+<script src="js/feature-rules.js"></script>
+<script src="js/feature-settings.js"></script>
+<script src="js/99-app.js"></script>
+
+</body>
+</html>
