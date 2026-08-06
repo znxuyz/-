@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作進度追蹤板</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --ink:#2b3245; --muted:#8a92a6;
+    --line:#e3e7f0; --brand:#4f6df5; --brand-soft:#eef1fe;
+    --todo:#f59e0b; --doing:#4f6df5; --done:#10b981; --danger:#ef4444;
+    --radius:14px; --shadow:0 2px 10px rgba(43,50,69,.07);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink); display:flex; flex-direction:column;
+  }
+  button{font-family:inherit; cursor:pointer;}
+  input,textarea,select{font-family:inherit; font-size:14px; color:var(--ink);}
+
+  /* ===== Header ===== */
+  header{
+    background:var(--card); border-bottom:1px solid var(--line);
+    padding:10px 18px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  header h1{font-size:18px; display:flex; align-items:center; gap:8px;}
+  #boardName{font-size:15px; font-weight:700; border:none; background:transparent;
+    border-bottom:1.5px dashed transparent; max-width:200px;}
+  #boardName:hover,#boardName:focus{border-bottom-color:var(--brand); outline:none;}
+  .spacer{flex:1;}
+  .conn{
+    display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+    background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:4px 12px;
+  }
+  .conn .dot{width:8px; height:8px; border-radius:50%; background:#c1c7d6;}
+  .conn.online .dot{background:var(--done); box-shadow:0 0 0 3px rgba(16,185,129,.18);}
+  .conn.local .dot{background:var(--todo);}
+  #presence{display:flex; align-items:center;}
+  #presence .avatar{
+    width:28px; height:28px; border-radius:50%; color:#fff; font-size:12px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; margin-left:-6px;
+    border:2px solid var(--card); cursor:default;
+  }
+  .btn{
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+    padding:7px 14px; border-radius:10px; font-size:13px; transition:.15s;
+  }
+  .btn:hover{border-color:var(--brand); color:var(--brand); background:var(--brand-soft);}
+  .btn.primary{background:var(--brand); border-color:var(--brand); color:#fff;}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.danger{color:var(--danger); border-color:#f6caca;}
+  .btn.danger:hover{background:#fdf0f0;}
+
+  /* ===== Stats bar ===== */
+  #statsBar{
+    display:flex; align-items:center; gap:18px; padding:10px 18px; flex-wrap:wrap;
+    font-size:13px; color:var(--muted);
+  }
+  #statsBar b{color:var(--ink); font-size:15px;}
+  .overall{flex:1; min-width:180px; display:flex; align-items:center; gap:10px;}
+  .overall .track{flex:1; height:10px; background:#e6eaf4; border-radius:999px; overflow:hidden;}
+  .overall .fill{height:100%; background:linear-gradient(90deg,var(--brand),var(--done)); width:0%; transition:width .4s;}
+
+  /* ===== Board ===== */
+  #board{
+    flex:1; display:flex; gap:14px; padding:0 18px 18px; overflow-x:auto; align-items:flex-start;
+  }
+  .col{
+    flex:1; min-width:270px; background:#eceff7; border-radius:var(--radius);
+    display:flex; flex-direction:column; max-height:100%;
+  }
+  .col-head{
+    padding:12px 14px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px;
+    border-bottom:2px solid transparent;
+  }
+  .col-head .count{
+    font-size:12px; font-weight:600; background:var(--card); color:var(--muted);
+    border-radius:999px; padding:1px 9px;
+  }
+  .col[data-status="todo"] .col-head{color:var(--todo);}
+  .col[data-status="doing"] .col-head{color:var(--doing);}
+  .col[data-status="done"] .col-head{color:var(--done);}
+  .col-body{padding:4px 10px 10px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:60px;}
+  .col.dragover .col-body{outline:2px dashed var(--brand); outline-offset:-4px; border-radius:10px;}
+
+  .task{
+    background:var(--card); border-radius:12px; box-shadow:var(--shadow); padding:12px;
+    cursor:grab; border-left:4px solid var(--todo); position:relative;
+  }
+  .task[data-status="doing"]{border-left-color:var(--doing);}
+  .task[data-status="done"]{border-left-color:var(--done);}
+  .task.dragging{opacity:.45;}
+  .task .t-title{font-size:14px; font-weight:700; line-height:1.4; word-break:break-word;}
+  .task[data-status="done"] .t-title{text-decoration:line-through; color:var(--muted);}
+  .task .t-desc{font-size:12px; color:var(--muted); margin-top:4px; line-height:1.5;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;}
+  .task .t-meta{display:flex; align-items:center; gap:8px; margin-top:8px; font-size:11px; color:var(--muted); flex-wrap:wrap;}
+  .task .t-assignee{background:var(--brand-soft); color:var(--brand); border-radius:999px; padding:1px 8px; font-weight:600;}
+  .task .t-due{border-radius:999px; padding:1px 8px; background:#f1f3f9;}
+  .task .t-due.overdue{background:#fdeaea; color:var(--danger); font-weight:700;}
+  .task .t-prog{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .task .t-prog .track{flex:1; height:6px; background:#e6eaf4; border-radius:999px; overflow:hidden;}
+  .task .t-prog .fill{height:100%; background:var(--brand); transition:width .3s;}
+  .task[data-status="done"] .t-prog .fill{background:var(--done);}
+  .task .t-prog span{font-size:11px; color:var(--muted); width:32px; text-align:right;}
+  .task .movers{
+    position:absolute; top:8px; right:8px; display:none; gap:4px;
+  }
+  .task:hover .movers{display:flex;}
+  .movers button{
+    border:1px solid var(--line); background:var(--card); border-radius:8px;
+    width:24px; height:24px; font-size:12px; line-height:1; color:var(--muted);
+  }
+  .movers button:hover{color:var(--brand); border-color:var(--brand);}
+  .add-task{
+    margin:0 10px 12px; border:1.5px dashed #c6cde0; background:transparent; color:var(--muted);
+    border-radius:10px; padding:9px; font-size:13px;
+  }
+  .add-task:hover{color:var(--brand); border-color:var(--brand); background:var(--brand-soft);}
+  .empty-hint{font-size:12px; color:#b0b7c9; text-align:center; padding:14px 0;}
+
+  /* ===== Modal ===== */
+  .overlay{
+    position:fixed; inset:0; background:rgba(30,35,50,.45); display:none;
+    align-items:center; justify-content:center; padding:16px; z-index:50;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:var(--card); border-radius:16px; width:100%; max-width:460px;
+    max-height:92vh; overflow-y:auto; padding:22px; box-shadow:0 12px 40px rgba(0,0,0,.18);
+  }
+  .modal h2{font-size:16px; margin-bottom:16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:5px;}
+  .field input[type=text],.field input[type=date],.field textarea,.field select{
+    width:100%; border:1px solid var(--line); border-radius:10px; padding:9px 12px; background:#fbfcfe;
+  }
+  .field textarea{resize:vertical; min-height:70px;}
+  .field input:focus,.field textarea:focus,.field select:focus{outline:none; border-color:var(--brand);}
+  .field .range-row{display:flex; align-items:center; gap:10px;}
+  .field input[type=range]{flex:1; accent-color:var(--brand);}
+  .modal-actions{display:flex; gap:10px; margin-top:18px;}
+  .modal-actions .spacer{flex:1;}
+  .hint{font-size:12px; color:var(--muted); line-height:1.7;}
+  .hint ol{padding-left:18px; margin:6px 0;}
+  .hint code{background:var(--bg); border-radius:6px; padding:1px 6px; font-size:11px;}
+  .hint a{color:var(--brand);}
+  details.setup-help{border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:14px;}
+  details.setup-help summary{font-size:13px; font-weight:700; cursor:pointer; color:var(--brand);}
+  .banner{
+    margin:0 18px 10px; background:#fff8e8; border:1px solid #f3dfae; color:#8a6d1d;
+    border-radius:10px; padding:9px 14px; font-size:13px; display:none; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .banner.show{display:flex;}
+  .banner button{border:none; background:transparent; color:var(--brand); font-weight:700; font-size:13px; text-decoration:underline;}
+  #toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(80px);
+    background:var(--ink); color:#fff; font-size:13px; border-radius:999px; padding:9px 20px;
+    transition:transform .25s; z-index:99; pointer-events:none;
+  }
+  #toast.show{transform:translateX(-50%) translateY(0);}
+  @media (max-width:720px){
+    #board{flex-direction:column; overflow-x:hidden;}
+    .col{min-width:0; width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 <input id="boardName" value="工作進度追蹤板" title="點擊修改看板名稱"></h1>
+  <div class="spacer"></div>
+  <div id="presence" title="目前在線"></div>
+  <div class="conn local" id="connBadge"><span class="dot"></span><span id="connText">單機模式</span></div>
+  <button class="btn" id="shareBtn">🔗 分享連結</button>
+  <button class="btn" id="setupBtn">⚙️ 連線設定</button>
+</header>
+
+<div class="banner" id="localBanner">
+  ⚠️ 目前是「單機模式」，資料只存在這台裝置的瀏覽器裡。想要多人即時共用，請
+  <button id="bannerSetup">設定 Firebase 連線</button>
+</div>
+
+<div id="statsBar">
+  <div>總任務 <b id="stTotal">0</b></div>
+  <div>進行中 <b id="stDoing" style="color:var(--doing)">0</b></div>
+  <div>已完成 <b id="stDone" style="color:var(--done)">0</b></div>
+  <div class="overall">
+    <span>整體進度</span>
+    <div class="track"><div class="fill" id="overallFill"></div></div>
+    <b id="overallPct">0%</b>
+  </div>
+</div>
+
+<div id="board">
+  <div class="col" data-status="todo">
+    <div class="col-head">📌 待辦 <span class="count">0</span></div>
+    <div class="col-body"></div>
+    <button class="add-task" data-status="todo">＋ 新增任務</button>
+  </div>
+  <div class="col" data-status="doing">
+    <div class="col-head">🚀 進行中 <span class="count">0</span></div>
+    <div class="col-body"></div>
+    <button class="add-task" data-status="doing">＋ 新增任務</button>
+  </div>
+  <div class="col" data-status="done">
+    <div class="col-head">✅ 已完成 <span class="count">0</span></div>
+    <div class="col-body"></div>
+    <button class="add-task" data-status="done">＋ 新增任務</button>
+  </div>
+</div>
+
+<!-- 任務編輯 Modal -->
+<div class="overlay" id="taskOverlay">
+  <div class="modal">
+    <h2 id="taskModalTitle">新增任務</h2>
+    <div class="field">
+      <label>任務名稱 *</label>
+      <input type="text" id="fTitle" maxlength="100" placeholder="例如:完成期末報告初稿">
+    </div>
+    <div class="field">
+      <label>說明</label>
+      <textarea id="fDesc" maxlength="1000" placeholder="補充細節、注意事項…"></textarea>
+    </div>
+    <div class="field">
+      <label>負責人</label>
+      <input type="text" id="fAssignee" maxlength="30" placeholder="這項工作由誰負責?">
+    </div>
+    <div class="field">
+      <label>截止日期</label>
+      <input type="date" id="fDue">
+    </div>
+    <div class="field">
+      <label>狀態</label>
+      <select id="fStatus">
+        <option value="todo">📌 待辦</option>
+        <option value="doing">🚀 進行中</option>
+        <option value="done">✅ 已完成</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>完成度</label>
+      <div class="range-row">
+        <input type="range" id="fProgress" min="0" max="100" step="5" value="0">
+        <b id="fProgressVal" style="width:44px; text-align:right;">0%</b>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="fDelete" style="display:none">刪除</button>
+      <div class="spacer"></div>
+      <button class="btn" id="fCancel">取消</button>
+      <button class="btn primary" id="fSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 連線設定 Modal -->
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <h2>⚙️ 多人連線設定</h2>
+    <p class="hint" style="margin-bottom:14px;">
+      本頁面使用 <b>Firebase Realtime Database</b>(Google 提供,有免費額度)做多人即時同步。
+      跟本專案的 AI 助手一樣採「自備鑰匙」模式——資料存在<b>你自己的</b> Firebase 專案裡,不經過任何第三方。
+    </p>
+    <details class="setup-help">
+      <summary>📖 第一次設定?展開教學(約 3 分鐘)</summary>
+      <div class="hint">
+        <ol>
+          <li>前往 <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase 控制台</a>,登入 Google 帳號 → 「建立專案」(名稱隨意,可關閉 Analytics)。</li>
+          <li>左側選單 → <b>建構 → Realtime Database</b> → 「建立資料庫」→ 地區選 <code>asia-southeast1</code> → 選「<b>以測試模式啟動</b>」。</li>
+          <li>回到專案首頁,點 <b>「&lt;/&gt; 網頁」</b> 圖示註冊網頁應用程式(不必勾選 Hosting)。</li>
+          <li>畫面會出現 <code>const firebaseConfig = { ... }</code>,把 <b>大括號整段</b>複製,貼到下面的欄位。</li>
+          <li>⚠️ 測試模式的讀寫權限 30 天後會到期。到期前請到 Realtime Database 的「規則」分頁,把 <code>".read"</code> 和 <code>".write"</code> 都改成 <code>true</code>(適合班級/小組內部使用;請勿存放敏感資料)。</li>
+        </ol>
+        設定完成後,把「分享連結」傳給同伴,<b>他們不需要再設定</b>——連結裡會自動帶上連線資訊。
+      </div>
+    </details>
+    <div class="field">
+      <label>Firebase 設定(貼上 firebaseConfig 整段)</label>
+      <textarea id="fbConfigInput" style="min-height:120px; font-family:monospace; font-size:12px;"
+        placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "xxx.firebaseapp.com",
+  "databaseURL": "https://xxx.firebasedatabase.app",
+  "projectId": "xxx",
+  ...
+}'></textarea>
+    </div>
+    <div class="field">
+      <label>你的顯示名稱(讓同伴知道你是誰)</label>
+      <input type="text" id="fbNameInput" maxlength="20" placeholder="例如:小明">
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="fbDisconnect" style="display:none">改回單機模式</button>
+      <div class="spacer"></div>
+      <button class="btn" id="fbCancel">取消</button>
+      <button class="btn primary" id="fbConnect">連線</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+/* ================================================================
+   工作進度追蹤板 — 多人即時協作
+   同步後端:Firebase Realtime Database(使用者自備專案)
+   無設定時:單機模式(localStorage + BroadcastChannel 跨分頁同步)
+   ================================================================ */
+
+const $  = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+/* ---------- 基本識別 ---------- */
+const params  = new URLSearchParams(location.search);
+const boardId = (params.get('board') || 'main').replace(/[^\w-]/g, '') || 'main';
+const LSK = {
+  config : 'wpt_fbconfig',
+  name   : 'wpt_username',
+  client : 'wpt_clientid',
+  tasks  : 'wpt_tasks_'  + boardId,
+  meta   : 'wpt_meta_'   + boardId,
+};
+let clientId = localStorage.getItem(LSK.client);
+if (!clientId) {
+  clientId = 'c' + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem(LSK.client, clientId);
+}
+let userName = localStorage.getItem(LSK.name) || '';
+
+/* 分享連結可夾帶連線設定(base64),點開即自動連線 */
+if (params.get('fb')) {
+  try {
+    const cfg = JSON.parse(decodeURIComponent(escape(atob(params.get('fb')))));
+    if (cfg && cfg.apiKey && cfg.databaseURL) {
+      localStorage.setItem(LSK.config, JSON.stringify(cfg));
+    }
+  } catch (e) { /* 忽略壞掉的參數 */ }
+  history.replaceState(null, '', location.pathname + '?board=' + boardId);
+}
+
+/* ---------- 資料層(兩種實作:Firebase / 本機) ---------- */
+let store   = null;      // 目前使用中的資料層
+let tasks   = {};        // {id: task}
+let boardMeta = { name: '工作進度追蹤板' };
+
+function newId() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+/* --- 本機模式 --- */
+function createLocalStore() {
+  const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('wpt_' + boardId) : null;
+  let onChange = () => {};
+  const load = () => {
+    try { tasks = JSON.parse(localStorage.getItem(LSK.tasks)) || {}; } catch (e) { tasks = {}; }
+    try { boardMeta = JSON.parse(localStorage.getItem(LSK.meta)) || boardMeta; } catch (e) {}
+  };
+  const persist = () => {
+    localStorage.setItem(LSK.tasks, JSON.stringify(tasks));
+    localStorage.setItem(LSK.meta,  JSON.stringify(boardMeta));
+    if (bc) bc.postMessage('sync');
+  };
+  if (bc) bc.onmessage = () => { load(); onChange(); };
+  window.addEventListener('storage', (e) => {
+    if (e.key === LSK.tasks || e.key === LSK.meta) { load(); onChange(); }
+  });
+  return {
+    mode: 'local',
+    start(cb) { onChange = cb; load(); cb(); },
+    saveTask(t)   { tasks[t.id] = t; persist(); onChange(); },
+    deleteTask(id){ delete tasks[id]; persist(); onChange(); },
+    saveMeta()    { persist(); onChange(); },
+    stop() { if (bc) bc.close(); },
+  };
+}
+
+/* --- Firebase 模式 --- */
+async function createFirebaseStore(config) {
+  const appMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+  const dbMod  = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js');
+  const { initializeApp } = appMod;
+  const { getDatabase, ref, onValue, set, remove, update, onDisconnect, serverTimestamp } = dbMod;
+
+  const app  = initializeApp(config);
+  const db   = getDatabase(app);
+  const base = 'boards/' + boardId;
+
+  let onChange = () => {};
+  let unsubs = [];
+
+  return {
+    mode: 'firebase',
+    start(cb) {
+      onChange = cb;
+      unsubs.push(onValue(ref(db, base + '/tasks'), (snap) => {
+        tasks = snap.val() || {};
+        onChange();
+      }, (err) => {
+        toast('⚠️ 讀取失敗:' + err.message + '(請檢查資料庫規則)');
+      }));
+      unsubs.push(onValue(ref(db, base + '/meta'), (snap) => {
+        const m = snap.val();
+        if (m && m.name) { boardMeta = m; renderMeta(); }
+      }));
+      /* 在線名單 */
+      const meRef = ref(db, base + '/presence/' + clientId);
+      const beat = () => set(meRef, { name: userName || '訪客', ts: serverTimestamp() }).catch(()=>{});
+      beat();
+      onDisconnect(meRef).remove();
+      const beatTimer = setInterval(beat, 45000);
+      unsubs.push(() => clearInterval(beatTimer));
+      unsubs.push(onValue(ref(db, base + '/presence'), (snap) => {
+        renderPresence(snap.val() || {});
+      }));
+      unsubs.push(() => remove(meRef).catch(()=>{}));
+    },
+    saveTask(t)   { set(ref(db, base + '/tasks/' + t.id), t).catch(e => toast('⚠️ 寫入失敗:' + e.message)); },
+    deleteTask(id){ remove(ref(db, base + '/tasks/' + id)).catch(e => toast('⚠️ 刪除失敗:' + e.message)); },
+    saveMeta()    { update(ref(db, base + '/meta'), boardMeta).catch(()=>{}); },
+    stop() { unsubs.forEach(u => u()); unsubs = []; },
+  };
+}
+
+/* ---------- 畫面渲染 ---------- */
+const cols = {};
+$$('.col').forEach(c => cols[c.dataset.status] = c);
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return (d.getMonth()+1) + '/' + d.getDate() + ' ' +
+         String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function render() {
+  const list = Object.values(tasks).sort((a, b) => (a.order || 0) - (b.order || 0));
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  for (const status of ['todo', 'doing', 'done']) {
+    const body = $('.col-body', cols[status]);
+    const items = list.filter(t => (t.status || 'todo') === status);
+    $('.count', cols[status]).textContent = items.length;
+    body.innerHTML = items.length ? '' : '<div class="empty-hint">— 拖曳任務到這裡 —</div>';
+    for (const t of items) {
+      const prog = status === 'done' ? 100 : (t.progress || 0);
+      const overdue = t.due && status !== 'done' && new Date(t.due) < today;
+      const el = document.createElement('div');
+      el.className = 'task';
+      el.draggable = true;
+      el.dataset.id = t.id;
+      el.dataset.status = status;
+      el.innerHTML = `
+        <div class="movers">
+          ${status !== 'todo' ? '<button data-move="-1" title="往左移">◀</button>' : ''}
+          ${status !== 'done' ? '<button data-move="1" title="往右移">▶</button>' : ''}
+        </div>
+        <div class="t-title">${esc(t.title)}</div>
+        ${t.desc ? `<div class="t-desc">${esc(t.desc)}</div>` : ''}
+        <div class="t-prog">
+          <div class="track"><div class="fill" style="width:${prog}%"></div></div><span>${prog}%</span>
+        </div>
+        <div class="t-meta">
+          ${t.assignee ? `<span class="t-assignee">👤 ${esc(t.assignee)}</span>` : ''}
+          ${t.due ? `<span class="t-due ${overdue ? 'overdue' : ''}">📅 ${esc(t.due)}${overdue ? ' 已逾期' : ''}</span>` : ''}
+          ${t.updatedAt ? `<span title="最後更新">🕐 ${fmtTime(t.updatedAt)}${t.updatedBy ? ' · ' + esc(t.updatedBy) : ''}</span>` : ''}
+        </div>`;
+      body.appendChild(el);
+    }
+  }
+
+  /* 統計 */
+  const total = list.length;
+  const doing = list.filter(t => t.status === 'doing').length;
+  const done  = list.filter(t => t.status === 'done').length;
+  const pct = total
+    ? Math.round(list.reduce((s, t) => s + (t.status === 'done' ? 100 : (t.progress || 0)), 0) / total)
+    : 0;
+  $('#stTotal').textContent = total;
+  $('#stDoing').textContent = doing;
+  $('#stDone').textContent  = done;
+  $('#overallFill').style.width = pct + '%';
+  $('#overallPct').textContent  = pct + '%';
+}
+
+function renderMeta() {
+  if (document.activeElement !== $('#boardName')) {
+    $('#boardName').value = boardMeta.name || '工作進度追蹤板';
+  }
+  document.title = (boardMeta.name || '工作進度追蹤板');
+}
+
+const AVATAR_COLORS = ['#4f6df5','#10b981','#f59e0b','#ef4444','#8b5cf6','#0ea5e9','#ec4899','#14b8a6'];
+function renderPresence(presence) {
+  const now = Date.now();
+  const users = Object.entries(presence)
+    .filter(([, u]) => u && u.ts && (typeof u.ts !== 'number' || now - u.ts < 3 * 60 * 1000))
+    .map(([id, u]) => ({ id, name: u.name || '訪客' }));
+  const box = $('#presence');
+  box.innerHTML = '';
+  users.slice(0, 8).forEach((u, i) => {
+    const a = document.createElement('div');
+    a.className = 'avatar';
+    a.style.background = AVATAR_COLORS[i % AVATAR_COLORS.length];
+    a.textContent = (u.name || '?').slice(0, 1).toUpperCase();
+    a.title = u.name + (u.id === clientId ? '(你)' : '');
+    box.appendChild(a);
+  });
+  if (users.length > 8) {
+    const more = document.createElement('div');
+    more.className = 'avatar';
+    more.style.background = '#8a92a6';
+    more.textContent = '+' + (users.length - 8);
+    box.appendChild(more);
+  }
+}
+
+/* ---------- 任務編輯 ---------- */
+let editingId = null;
+
+function openTaskModal(task, defaultStatus) {
+  editingId = task ? task.id : null;
+  $('#taskModalTitle').textContent = task ? '編輯任務' : '新增任務';
+  $('#fTitle').value    = task ? task.title : '';
+  $('#fDesc').value     = task ? (task.desc || '') : '';
+  $('#fAssignee').value = task ? (task.assignee || '') : '';
+  $('#fDue').value      = task ? (task.due || '') : '';
+  $('#fStatus').value   = task ? (task.status || 'todo') : (defaultStatus || 'todo');
+  $('#fProgress').value = task ? (task.progress || 0) : 0;
+  $('#fProgressVal').textContent = $('#fProgress').value + '%';
+  $('#fDelete').style.display = task ? '' : 'none';
+  $('#taskOverlay').classList.add('show');
+  $('#fTitle').focus();
+}
+function closeTaskModal() { $('#taskOverlay').classList.remove('show'); editingId = null; }
+
+$('#fProgress').addEventListener('input', () => {
+  $('#fProgressVal').textContent = $('#fProgress').value + '%';
+});
+$('#fSave').addEventListener('click', () => {
+  const title = $('#fTitle').value.trim();
+  if (!title) { toast('請輸入任務名稱'); $('#fTitle').focus(); return; }
+  const status = $('#fStatus').value;
+  const prev = editingId ? tasks[editingId] : null;
+  const t = {
+    id: editingId || newId(),
+    title,
+    desc:     $('#fDesc').value.trim(),
+    assignee: $('#fAssignee').value.trim(),
+    due:      $('#fDue').value || '',
+    status,
+    progress: status === 'done' ? 100 : Number($('#fProgress').value),
+    order:    prev ? (prev.order || Date.now()) : Date.now(),
+    createdAt: prev ? (prev.createdAt || Date.now()) : Date.now(),
+    updatedAt: Date.now(),
+    updatedBy: userName || '',
+  };
+  store.saveTask(t);
+  closeTaskModal();
+});
+$('#fCancel').addEventListener('click', closeTaskModal);
+$('#fDelete').addEventListener('click', () => {
+  if (editingId && confirm('確定要刪除這項任務?')) {
+    store.deleteTask(editingId);
+    closeTaskModal();
+  }
+});
+$('#taskOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeTaskModal(); });
+
+$$('.add-task').forEach(btn => btn.addEventListener('click', () => openTaskModal(null, btn.dataset.status)));
+
+/* 點卡片開編輯、◀▶ 快速換欄 */
+const STATUS_FLOW = ['todo', 'doing', 'done'];
+$('#board').addEventListener('click', (e) => {
+  const mover = e.target.closest('[data-move]');
+  const card  = e.target.closest('.task');
+  if (!card) return;
+  const t = tasks[card.dataset.id];
+  if (!t) return;
+  if (mover) {
+    const idx = STATUS_FLOW.indexOf(t.status || 'todo') + Number(mover.dataset.move);
+    const next = STATUS_FLOW[Math.max(0, Math.min(2, idx))];
+    moveTask(t, next);
+  } else {
+    openTaskModal(t);
+  }
+});
+
+function moveTask(t, status) {
+  if ((t.status || 'todo') === status) return;
+  const upd = { ...t, status, updatedAt: Date.now(), updatedBy: userName || '', order: Date.now() };
+  if (status === 'done') upd.progress = 100;
+  if (status !== 'done' && t.status === 'done') upd.progress = 90;
+  store.saveTask(upd);
+}
+
+/* ---------- 拖曳 ---------- */
+let dragId = null;
+$('#board').addEventListener('dragstart', (e) => {
+  const card = e.target.closest('.task');
+  if (!card) return;
+  dragId = card.dataset.id;
+  card.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+});
+$('#board').addEventListener('dragend', (e) => {
+  const card = e.target.closest('.task');
+  if (card) card.classList.remove('dragging');
+  $$('.col').forEach(c => c.classList.remove('dragover'));
+  dragId = null;
+});
+$$('.col').forEach(col => {
+  col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('dragover'); });
+  col.addEventListener('dragleave', (e) => { if (!col.contains(e.relatedTarget)) col.classList.remove('dragover'); });
+  col.addEventListener('drop', (e) => {
+    e.preventDefault();
+    col.classList.remove('dragover');
+    if (dragId && tasks[dragId]) moveTask(tasks[dragId], col.dataset.status);
+  });
+});
+
+/* ---------- 看板名稱 ---------- */
+$('#boardName').addEventListener('change', () => {
+  boardMeta.name = $('#boardName').value.trim() || '工作進度追蹤板';
+  store.saveMeta();
+  renderMeta();
+});
+
+/* ---------- 分享連結 ---------- */
+$('#shareBtn').addEventListener('click', async () => {
+  let url = location.origin + location.pathname + '?board=' + boardId;
+  const cfgRaw = localStorage.getItem(LSK.config);
+  if (cfgRaw) {
+    url += '&fb=' + btoa(unescape(encodeURIComponent(cfgRaw)));
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(cfgRaw ? '已複製連結!同伴點開就能一起編輯 🎉' : '已複製連結(單機模式:對方看不到你的資料)');
+  } catch (e) {
+    prompt('請手動複製這個連結:', url);
+  }
+});
+
+/* ---------- 連線設定 ---------- */
+function openSetup() {
+  const raw = localStorage.getItem(LSK.config);
+  $('#fbConfigInput').value = raw ? JSON.stringify(JSON.parse(raw), null, 2) : '';
+  $('#fbNameInput').value = userName;
+  $('#fbDisconnect').style.display = raw ? '' : 'none';
+  $('#setupOverlay').classList.add('show');
+}
+$('#setupBtn').addEventListener('click', openSetup);
+$('#bannerSetup').addEventListener('click', openSetup);
+$('#fbCancel').addEventListener('click', () => $('#setupOverlay').classList.remove('show'));
+$('#setupOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('show'); });
+
+function parseConfig(text) {
+  /* 接受標準 JSON,也接受從 Firebase 複製的 JS 物件寫法 */
+  text = text.trim()
+    .replace(/^const\s+firebaseConfig\s*=\s*/, '')
+    .replace(/;$/, '');
+  try { return JSON.parse(text); } catch (e) {}
+  try {
+    const jsonish = text
+      .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":')
+      .replace(/'/g, '"')
+      .replace(/,\s*}/g, '}');
+    return JSON.parse(jsonish);
+  } catch (e) { return null; }
+}
+
+$('#fbConnect').addEventListener('click', async () => {
+  const cfg = parseConfig($('#fbConfigInput').value);
+  if (!cfg || !cfg.apiKey) { toast('⚠️ 設定格式不正確,請完整貼上 firebaseConfig'); return; }
+  if (!cfg.databaseURL) {
+    toast('⚠️ 設定裡缺少 databaseURL — 請先在 Firebase 建立 Realtime Database,再重新複製設定');
+    return;
+  }
+  userName = $('#fbNameInput').value.trim() || '訪客';
+  localStorage.setItem(LSK.name, userName);
+  localStorage.setItem(LSK.config, JSON.stringify(cfg));
+  $('#setupOverlay').classList.remove('show');
+  await boot();
+});
+
+$('#fbDisconnect').addEventListener('click', () => {
+  if (!confirm('改回單機模式?(雲端資料不會被刪除,只是這台裝置不再連線)')) return;
+  localStorage.removeItem(LSK.config);
+  $('#setupOverlay').classList.remove('show');
+  boot();
+});
+
+/* ---------- 提示 ---------- */
+let toastTimer = null;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+/* ---------- 啟動 ---------- */
+function setConnUI(mode, ok) {
+  const badge = $('#connBadge');
+  badge.classList.toggle('online', mode === 'firebase' && ok);
+  badge.classList.toggle('local',  mode === 'local');
+  $('#connText').textContent = mode === 'firebase' ? (ok ? '已連線 · 多人同步中' : '連線中…') : '單機模式';
+  $('#localBanner').classList.toggle('show', mode === 'local');
+  if (mode === 'local') $('#presence').innerHTML = '';
+}
+
+async function boot() {
+  if (store) { store.stop(); store = null; }
+  tasks = {};
+  const cfgRaw = localStorage.getItem(LSK.config);
+  if (cfgRaw) {
+    setConnUI('firebase', false);
+    if (!userName) {
+      userName = (prompt('請輸入你的顯示名稱(讓同伴知道你是誰):') || '訪客').trim().slice(0, 20) || '訪客';
+      localStorage.setItem(LSK.name, userName);
+    }
+    try {
+      store = await createFirebaseStore(JSON.parse(cfgRaw));
+      store.start(render);
+      setConnUI('firebase', true);
+      renderMeta();
+      return;
+    } catch (e) {
+      toast('⚠️ Firebase 連線失敗:' + e.message + ',先以單機模式開啟');
+    }
+  }
+  store = createLocalStore();
+  store.start(render);
+  setConnUI('local');
+  renderMeta();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeTaskModal(); $('#setupOverlay').classList.remove('show'); }
+});
+
+boot();
+</script>
+</body>
+</html>
