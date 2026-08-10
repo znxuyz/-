@@ -101,10 +101,14 @@ async function gateCreateClass() {
 
 function showClassPicker() {
   const cards = state.myClasses.map(c => `
-    <div class="class-card" onclick="Session.openClass('${c.id}')">
-      <div class="class-card-name">${escapeHtml(c.className)}</div>
-      <div class="class-card-meta">${c.studentCount} 位學生</div>
-      <div class="class-card-code">加入代碼 ${escapeHtml(c.joinCode || '—')}</div>
+    <div class="class-card">
+      <div onclick="Session.openClass('${c.id}')">
+        <div class="class-card-name">${escapeHtml(c.className)}</div>
+        <div class="class-card-meta">${c.studentCount} 位學生</div>
+        <div class="class-card-code">加入代碼 ${escapeHtml(c.joinCode || '—')}</div>
+      </div>
+      <button class="class-card-delete" title="刪除這個班級"
+              onclick="gateDeleteClass('${c.id}', '${escapeHtml(c.className)}')">✕</button>
     </div>
   `).join('');
 
@@ -131,6 +135,23 @@ function showClassPicker() {
       </div>
     </div>
   `);
+}
+
+async function gateDeleteClass(classId, className) {
+  if (!confirm(`確定刪除「${className}」?\n\n學生的守護獸、積分、測驗成績都會一併消失,無法復原。`)) return;
+  if (!confirm(`最後確認:真的要刪除「${className}」嗎?`)) return;
+
+  try {
+    toast('刪除中…');
+    await Cloud.deleteClass(classId);        // 會一併清掉學生的名冊索引
+    Storage.clear(classId);
+    state.myClasses = await Cloud.listTeacherClasses(state.user.uid);
+    showClassPicker();
+    toast(`已刪除「${className}」`);
+  } catch (e) {
+    console.error(e);
+    toast('刪除失敗:' + e.message);
+  }
 }
 
 /* ---------- 4. 學生:所屬班級 ---------- */

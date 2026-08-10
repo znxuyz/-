@@ -145,8 +145,33 @@ const Cloud = {
     await this.db.collection('classes').doc(classId).update(payload);
   },
 
+  /* 刪除班級。必須連同名冊索引一起清掉,否則學生登入時
+     還會看到已經不存在的班級。 */
   async deleteClass(classId) {
+    const doc = await this.loadClass(classId);
+    const students = (doc && doc.blob && doc.blob.students) || [];
+    await this.removeFromRosterIndex(classId, students.map(s => s.email));
     await this.db.collection('classes').doc(classId).delete();
+  },
+
+  /* 把某個班級從這些 email 的索引中移除 */
+  async removeFromRosterIndex(classId, emails) {
+    const list = (emails || []).filter(Boolean);
+    if (list.length === 0) return;
+
+    const del = firebase.firestore.FieldValue.delete();
+    // 一次批次上限 500 筆,班級規模不會超過,但還是切一下比較保險
+    for (let i = 0; i < list.length; i += 400) {
+      const batch = this.db.batch();
+      list.slice(i, i + 400).forEach(email => {
+        const ref = this.db.collection('rosterIndex').doc(this.emailKey(email));
+        // update 才支援用點號指定巢狀欄位;文件不存在時會拋錯,所以個別容錯
+        batch.update(ref, { [`classes.${classId}`]: del });
+      });
+      await batch.commit().catch(e => {
+        console.warn('[Cloud] 清理名冊索引時有部分失敗:', e.message);
+      });
+    }
   },
 
   /* 六碼班級代碼,排除容易看錯的 0/O/1/I */
@@ -167,9 +192,26 @@ const Cloud = {
     return (email || '').trim().toLowerCase();
   },
 
-  /* 老師端:把整班的 email 索引寫進去(批次寫入,一次最多 500 筆) */
+  /* 老師端:把整班的 email 索引寫進去。
+     同時比對上次同步的名單,把已經不在這個班的學生索引清掉 ——
+     重新匯入名單換掉整批學生時,舊學生才不會還看得到這個班。 */
   async syncRosterIndex(classId, className, students) {
     const withEmail = students.filter(s => s.email);
+    const currentEmails = withEmail.map(s => this.emailKey(s.email));
+
+    const classRef = this.db.collection('classes').doc(classId);
+    const snap = await classRef.get();
+    const previousEmails = (snap.exists && snap.data().rosterEmails) || [];
+    const removed = previousEmails.filter(e => !currentEmails.includes(e));
+    if (removed.length > 0) {
+      await this.removeFromRosterIndex(classId, removed);
+    }
+
+    if (withEmail.length === 0) {
+      await classRef.update({ rosterEmails: [] });
+      return 0;
+    }
+
     const batch = this.db.batch();
     withEmail.forEach(s => {
       const ref = this.db.collection('rosterIndex').doc(this.emailKey(s.email));
@@ -186,17 +228,44 @@ const Cloud = {
         }
       }, { merge: true });
     });
-    if (withEmail.length === 0) return 0;
     await batch.commit();
+    // 記下這次的名單,下次同步時才知道誰被移除了
+    await classRef.update({ rosterEmails: currentEmails });
     return withEmail.length;
   },
 
-  /* 學生端:用自己的 email 查出所屬班級 */
+  /* 學生端:用自己的 email 查出所屬班級。
+     索引可能殘留已刪除的班級,所以逐一確認班級真的還在,
+     並順手把失效的索引清掉(學生有權限改自己那一筆)。 */
   async findMyClasses(email) {
-    const snap = await this.db.collection('rosterIndex').doc(this.emailKey(email)).get();
+    const key = this.emailKey(email);
+    const snap = await this.db.collection('rosterIndex').doc(key).get();
     if (!snap.exists) return [];
-    const data = snap.data().classes || {};
-    return Object.values(data);
+
+    const entries = Object.values(snap.data().classes || {});
+    const alive = [];
+    const dead = [];
+
+    await Promise.all(entries.map(async entry => {
+      try {
+        const cls = await this.db.collection('classes').doc(entry.classId).get();
+        if (cls.exists) alive.push(entry);
+        else dead.push(entry.classId);
+      } catch (e) {
+        // 讀不到就當作還在,避免暫時性錯誤讓學生進不去
+        alive.push(entry);
+      }
+    }));
+
+    if (dead.length > 0) {
+      const del = firebase.firestore.FieldValue.delete();
+      const patch = {};
+      dead.forEach(id => { patch[`classes.${id}`] = del; });
+      this.db.collection('rosterIndex').doc(key).update(patch)
+        .catch(e => console.warn('[Cloud] 清理失效索引失敗:', e.message));
+    }
+
+    return alive;
   },
 
   /* ---------- 測驗 ----------
