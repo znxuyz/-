@@ -20,6 +20,8 @@ const StudentApp = {
   rankTab: 'individual',  // individual | group
   allStudents: [],        // 全班資料,排行榜用
   groupSet: null,         // 老師最近儲存的分組
+  unsub: null,            // 班級即時監聽
+  lastScore: undefined,   // 用來偵測加分,跳出提示
 
   async enter(classInfo) {
     this.classInfo = classInfo;
@@ -29,6 +31,33 @@ const StudentApp = {
       '<div class="student-loading">載入中…</div>';
 
     await this.refresh();
+    this.watch();
+  },
+
+  /* 老師一發分、一結算成績,學生畫面就跟著動。
+     排行榜是即時的,搶答結果馬上看得到名次變化。 */
+  watch() {
+    if (this.unsub) this.unsub();
+    this.unsub = Cloud.watchClass(this.classInfo.classId, doc => {
+      const blob = doc.blob || {};
+      this.allStudents = blob.students || [];
+      this.student = this.allStudents.find(s => s.id === this.classInfo.studentId) || null;
+
+      const sets = blob.groupSets || [];
+      this.groupSet = sets.length > 0 ? sets[sets.length - 1] : null;
+
+      // 正在作答時不要重繪,會把已經選好的答案清掉
+      if (this.activeQuiz) return;
+
+      const before = this.lastScore;
+      const now = this.student ? this.student.totalPoints : 0;
+      this.lastScore = now;
+
+      this.render();
+      if (before !== undefined && now > before) {
+        toast(`✦ 獲得 ${now - before} 分!`);
+      }
+    });
   },
 
   async refresh() {
@@ -176,10 +205,15 @@ const StudentApp = {
                 onclick="StudentApp.setRankTab('group')">小組榜</button>
       </div>` : '';
 
+    // 前三名沒變動就不重播動畫
+    const sig = this.rankTab + '::' + Leaderboard.signature(rows);
+    const animate = sig !== this.lastPodiumSig;
+    this.lastPodiumSig = sig;
+
     return `
       ${switcher}
       ${showGroup ? `<div class="rank-groupset-name">依「${escapeHtml(this.groupSet.name)}」分組</div>` : ''}
-      ${Leaderboard.renderPodium(rows, { highlightId: myId })}
+      ${Leaderboard.renderPodium(rows, { highlightId: myId, animate })}
       ${Leaderboard.renderMyRank(rows, myId, showGroup ? '我這組的名次' : '我的名次')}
       ${Leaderboard.renderList(rows, { highlightId: myId })}
     `;

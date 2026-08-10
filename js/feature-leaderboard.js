@@ -81,6 +81,12 @@ const Leaderboard = {
     return Math.round(this.PODIUM_MIN + ratio * (this.PODIUM_MAX - this.PODIUM_MIN));
   },
 
+  /* 名次的指紋。即時更新時用來判斷要不要重播動畫 ——
+     排名沒變還一直重播,孩子會看得很煩。 */
+  signature(rows) {
+    return rows.slice(0, 3).map(r => `${r.id}:${r.score}`).join('|');
+  },
+
   renderPodium(rows, opts) {
     const o = opts || {};
     if (rows.length === 0) {
@@ -115,7 +121,7 @@ const Leaderboard = {
         </div>`;
     }).join('');
 
-    return `<div class="podium">${columns}</div>`;
+    return `<div class="podium ${o.animate === false ? 'no-anim' : ''}">${columns}</div>`;
   },
 
   /* ---------- 名次列表 ---------- */

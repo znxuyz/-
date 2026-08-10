@@ -299,3 +299,11 @@
     transform: none;
   }
 }
+
+/* 即時更新時,名次沒變就不重播動畫 */
+.podium.no-anim .podium-block,
+.podium.no-anim .podium-figure {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}

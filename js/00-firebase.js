@@ -307,11 +307,21 @@ const Cloud = {
   },
 
   /* 學生交卷。文件 id 固定為 quizId__uid,
-     所以同一位學生重交也只會蓋掉自己那一份,不影響別人。 */
+     所以同一位學生重交也只會蓋掉自己那一份,不影響別人。
+
+     serverAt 用伺服器時間戳。搶答模式要比誰先交卷,不能用學生裝置的
+     時鐘 —— 手機時間各自偏差幾秒甚至幾分鐘,名次會判錯。
+     submittedAt 仍然保留,只作為伺服器時間拿不到時的備援。 */
   async submitAnswers(classId, quizId, uid, payload) {
     await this.db.collection('classes').doc(classId)
       .collection('submissions').doc(`${quizId}__${uid}`)
-      .set({ ...payload, quizId, uid, submittedAt: Date.now() });
+      .set({
+        ...payload,
+        quizId,
+        uid,
+        submittedAt: Date.now(),
+        serverAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
   },
 
   async getMySubmission(classId, quizId, uid) {
@@ -346,6 +356,34 @@ const Cloud = {
   async listSubmissions(classId, quizId) {
     const snap = await this.db.collection('classes').doc(classId)
       .collection('submissions').where('quizId', '==', quizId).get();
-    return snap.docs.map(d => d.data());
+    return snap.docs.map(d => this.normalizeSubmission(d.data()));
+  },
+
+  /* 把伺服器時間戳轉成毫秒。伺服器還沒回填時退回本機時間。 */
+  normalizeSubmission(data) {
+    const server = data.serverAt && typeof data.serverAt.toMillis === 'function'
+      ? data.serverAt.toMillis()
+      : null;
+    return { ...data, orderAt: server || data.submittedAt || 0 };
+  },
+
+  /* ---------- 即時監聽 ----------
+     回傳 unsubscribe 函式,切換班級或登出時要記得呼叫。 */
+
+  watchClass(classId, cb) {
+    return this.db.collection('classes').doc(classId).onSnapshot(snap => {
+      if (!snap.exists) return;
+      // 自己剛送出、還沒被伺服器確認的寫入不用理會,否則會自己蓋自己
+      if (snap.metadata.hasPendingWrites) return;
+      cb({ id: snap.id, ...snap.data() });
+    }, err => console.warn('[Cloud] 班級監聽中斷:', err.message));
+  },
+
+  watchSubmissions(classId, quizId, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('submissions').where('quizId', '==', quizId)
+      .onSnapshot(snap => {
+        cb(snap.docs.map(d => this.normalizeSubmission(d.data())));
+      }, err => console.warn('[Cloud] 作答監聽中斷:', err.message));
   }
 };

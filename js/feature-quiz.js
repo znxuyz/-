@@ -171,21 +171,38 @@ async function closeQuiz(quizId) {
    老師重複按「收回成績」不會重複加分。
 ============================================ */
 
-async function collectQuizResults(quizId) {
+/* 同一份測驗同時只能有一個結算在跑。
+   即時計分下交卷會連續觸發,沒有這道鎖的話兩次結算會讀到同一份
+   還沒寫回的 state,同一位學生被加兩次分。 */
+const _settling = new Set();
+
+async function collectQuizResults(quizId, opts) {
+  const silent = opts && opts.silent;
+
   if (!isCloudMode()) {
-    toast('需要登入雲端才能收回學生作答');
+    if (!silent) toast('需要登入雲端才能收回學生作答');
     return;
   }
   const quiz = getQuiz(quizId);
   if (!quiz) return;
 
-  toast('讀取中…');
+  if (_settling.has(quizId)) return;
+  _settling.add(quizId);
+  try {
+    await runCollect(quiz, quizId, silent);
+  } finally {
+    _settling.delete(quizId);
+  }
+}
+
+async function runCollect(quiz, quizId, silent) {
+  if (!silent) toast('讀取中…');
   let submissions;
   try {
     submissions = await Cloud.listSubmissions(state.classId, quizId);
   } catch (e) {
     console.error(e);
-    toast('讀取失敗:' + e.message);
+    if (!silent) toast('讀取失敗:' + e.message);
     return;
   }
 
@@ -196,8 +213,9 @@ async function collectQuizResults(quizId) {
     score: gradeSubmission(quiz, sub.answers || {})
   })).filter(g => g.student);
 
-  // 名次:答對多的在前,同分則先交卷的在前
-  graded.sort((a, b) => b.score - a.score || a.sub.submittedAt - b.sub.submittedAt);
+  // 名次:答對多的在前,同分則先交卷的在前。
+  // orderAt 用伺服器時間,不受學生裝置時鐘影響。
+  graded.sort((a, b) => b.score - a.score || a.sub.orderAt - b.sub.orderAt);
   graded.forEach((g, i) => { g.rank = i + 1; });
 
   const isTopN = quiz.scoreMode === 'topN';
@@ -221,7 +239,7 @@ async function collectQuizResults(quizId) {
       total: quiz.questions.length,
       awarded: points,
       rank,
-      at: sub.submittedAt
+      at: sub.orderAt
     };
 
     if (points > 0) {
@@ -240,12 +258,80 @@ async function collectQuizResults(quizId) {
   renderAll();
 
   if (newlyAwarded === 0) {
-    toast(`目前 ${submissions.length} 份作答都已結算過`);
+    if (!silent) toast(`目前 ${submissions.length} 份作答都已結算過`);
   } else {
     toast(`✦ 結算 ${newlyAwarded} 位學生,共發出 ${totalPoints} 分` +
           (missedCutoff > 0 ? `(${missedCutoff} 位答對但未進前 ${quiz.topN} 名)` : ''));
   }
 }
+
+/* ============================================
+   即時監聽開放中的測驗
+   ────────────────────────────────────────────
+   老師開著測驗頁時,學生一交卷畫面就更新。
+   打開「即時計分」的話還會自動結算,搶答課堂上不用一直按按鈕。
+============================================ */
+
+const QuizWatch = {
+  unsubs: {},          // { quizId: unsubscribe }
+  live: {},            // { quizId: [submissions] }
+  autoSettle: {},      // { quizId: true } 使用者開啟的即時計分
+
+  /* 依目前的測驗狀態,同步該訂閱誰、該退訂誰 */
+  sync() {
+    if (!isCloudMode()) return;
+
+    const open = state.quizzes.filter(q => q.status === 'open').map(q => q.id);
+
+    Object.keys(this.unsubs).forEach(id => {
+      if (!open.includes(id)) this.stop(id);
+    });
+
+    open.forEach(id => {
+      if (this.unsubs[id]) return;
+      this.unsubs[id] = Cloud.watchSubmissions(state.classId, id, subs => {
+        this.live[id] = subs;
+        this.renderCount(id);
+        if (this.autoSettle[id]) {
+          collectQuizResults(id, { silent: true }).then(() => renderQuizList());
+        }
+      });
+    });
+  },
+
+  stop(quizId) {
+    if (this.unsubs[quizId]) {
+      this.unsubs[quizId]();
+      delete this.unsubs[quizId];
+    }
+    delete this.live[quizId];
+  },
+
+  stopAll() {
+    Object.keys(this.unsubs).forEach(id => this.stop(id));
+    this.autoSettle = {};
+  },
+
+  /* 只更新那一行數字,不重繪整個列表 —— 老師正在打字時不會被打斷 */
+  renderCount(quizId) {
+    const el = document.getElementById('liveCount_' + quizId);
+    if (!el) return;
+    const n = (this.live[quizId] || []).length;
+    el.textContent = n > 0 ? `${n} 人已交卷` : '尚無人交卷';
+    el.classList.toggle('has-submissions', n > 0);
+  },
+
+  toggleAuto(quizId) {
+    this.autoSettle[quizId] = !this.autoSettle[quizId];
+    if (this.autoSettle[quizId]) {
+      toast('即時計分已開啟,學生交卷後自動結算');
+      collectQuizResults(quizId, { silent: true }).then(() => renderQuizList());
+    } else {
+      toast('即時計分已關閉');
+      renderQuizList();
+    }
+  }
+};
 
 /* 批改一份作答,回傳答對題數 */
 function gradeSubmission(quiz, answers) {
@@ -307,7 +393,13 @@ function renderQuizList() {
             ? `<button class="btn btn-accent btn-small" onclick="publishQuiz('${quiz.id}')">開放作答</button>`
             : ''}
           ${quiz.status === 'open'
-            ? `<button class="btn btn-primary btn-small" onclick="collectQuizResults('${quiz.id}')">收回成績</button>
+            ? `<span id="liveCount_${quiz.id}" class="quiz-live-count">連線中…</span>
+               <label class="quiz-auto-toggle" title="學生交卷後自動結算,不用一直按收回成績">
+                 <input type="checkbox" ${QuizWatch.autoSettle[quiz.id] ? 'checked' : ''}
+                        onchange="QuizWatch.toggleAuto('${quiz.id}')" />
+                 即時計分
+               </label>
+               <button class="btn btn-primary btn-small" onclick="collectQuizResults('${quiz.id}')">收回成績</button>
                <button class="btn btn-ghost btn-small" onclick="closeQuiz('${quiz.id}')">結束</button>`
             : ''}
           ${quiz.status === 'closed'
@@ -320,6 +412,10 @@ function renderQuizList() {
       ${quiz.status === 'draft' ? renderQuizEditor(quiz) : renderQuizResults(quiz)}
     </div>`;
   }).join('');
+
+  // 列表重繪後,訂閱狀態與畫面上的即時人數要跟著對齊
+  QuizWatch.sync();
+  Object.keys(QuizWatch.live).forEach(id => QuizWatch.renderCount(id));
 }
 
 function renderQuizEditor(quiz) {

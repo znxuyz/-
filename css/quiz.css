@@ -193,3 +193,32 @@
   margin-top: 10px;
   line-height: 1.8;
 }
+
+/* ---------- 即時作答狀態 ---------- */
+
+.quiz-live-count {
+  font-size: 12px;
+  color: var(--ink-muted);
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--paper-warm);
+  white-space: nowrap;
+}
+
+.quiz-live-count.has-submissions {
+  background: rgba(74, 124, 98, 0.16);
+  color: var(--forest);
+  font-weight: 600;
+}
+
+.quiz-auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.quiz-auto-toggle input { cursor: pointer; }

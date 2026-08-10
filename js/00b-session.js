@@ -74,6 +74,9 @@ const Session = {
 
   async signOut() {
     await flushCloudSave();
+    stopWatchingClass();
+    if (typeof QuizWatch !== 'undefined') QuizWatch.stopAll();
+    if (StudentApp.unsub) StudentApp.unsub();
     await Cloud.signOut();
     state.classId = null;
     state.user = null;
@@ -123,6 +126,8 @@ const Session = {
     updateSyncStatus('saved');
     showApp();
 
+    watchCurrentClass();
+
     // 收進學生自己挑好的守護獸(不擋畫面,收完再重繪)
     applyPendingPetChoices();
   },
@@ -130,9 +135,46 @@ const Session = {
   /* 切班前先把未送出的寫入補完,避免資料留在上一班 */
   async switchClass(classId) {
     await flushCloudSave();
+    stopWatchingClass();
+    QuizWatch.stopAll();
     await this.openClass(classId);
   }
 };
+
+/* ============================================
+   班級資料的即時同步
+   ────────────────────────────────────────────
+   老師可能同時開著電腦和平板,或是學生選了守護獸。
+   監聽班級文件,別的地方改了就把畫面補上。
+============================================ */
+
+let _classUnsub = null;
+
+function watchCurrentClass() {
+  stopWatchingClass();
+  if (!isCloudMode()) return;
+
+  _classUnsub = Cloud.watchClass(state.classId, doc => {
+    // 自己還有沒送出的變更時先不套用,否則會把還沒寫回雲端的操作蓋掉。
+    // 那筆寫入送出後,伺服器會再推一次,屆時兩邊本來就一致。
+    if (_cloudSavePending) return;
+
+    const keepSelection = state.selectedStudentId;
+    applyBlobToState(doc.blob || {});
+    state.selectedStudentId = keepSelection;
+    state.className = doc.className || state.className;
+
+    renderAll();
+    updateSyncStatus('saved');
+  });
+}
+
+function stopWatchingClass() {
+  if (_classUnsub) {
+    _classUnsub();
+    _classUnsub = null;
+  }
+}
 
 /* ============================================
    把雲端 blob 套進 state,並補齊舊資料缺少的欄位
