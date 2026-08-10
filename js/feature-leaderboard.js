@@ -37,16 +37,21 @@ const Leaderboard = {
     });
   },
 
-  /* 小組排名。分組表存的是當時的學生快照,
-     所以只取 id,分數一律回頭查目前的學生資料。 */
-  groups(students, groupSet) {
-    if (!groupSet || !groupSet.groups) return [];
+  /* 分組資料存的是學生 id 字串,分數一律回頭查目前的學生資料,
+     不用分組當下的快照。舊資料可能存成物件,所以兩種都接受。 */
+  memberId(m) {
+    return typeof m === 'string' ? m : (m && m.id);
+  },
+
+  groups(students, groupList) {
+    const list = Array.isArray(groupList) ? groupList : null;
+    if (!list || list.length === 0) return [];
 
     const byId = new Map(students.map(s => [s.id, s]));
 
-    const rows = groupSet.groups.map((members, i) => {
-      const live = members
-        .map(m => byId.get(m.id))
+    const rows = list.map((members, i) => {
+      const live = (members || [])
+        .map(m => byId.get(this.memberId(m)))
         .filter(Boolean);
       const score = live.reduce((sum, s) => sum + s.totalPoints, 0);
       return {
@@ -122,24 +127,6 @@ const Leaderboard = {
     }).join('');
 
     return `<div class="podium ${o.animate === false ? 'no-anim' : ''}">${columns}</div>`;
-  },
-
-  /* ---------- 名次列表 ---------- */
-
-  renderList(rows, opts) {
-    const o = opts || {};
-    const rest = rows.slice(3);
-    if (rest.length === 0) return '';
-
-    return `<div class="rank-list">` + rest.map(row => `
-      <div class="rank-row ${o.highlightId && row.id === o.highlightId ? 'is-me' : ''}">
-        <span class="rank-num">${row.rank}</span>
-        ${row.icon ? `<span class="rank-icon">${row.icon}</span>` : ''}
-        <span class="rank-name">${escapeHtml(row.name)}${
-          row.memberCount ? `<span class="rank-sub">${row.memberCount} 人 · 平均 ${row.average} 分</span>` : ''
-        }</span>
-        <span class="rank-score">${row.score}</span>
-      </div>`).join('') + `</div>`;
   },
 
   /* 自己的名次卡。就算沒進前三也看得到自己在哪。 */

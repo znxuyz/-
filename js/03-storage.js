@@ -55,6 +55,8 @@ function serializeState() {
     attendance: state.attendance,
     seatingLayouts: state.seatingLayouts,
     groupSets: state.groupSets,
+    // 未命名儲存的分組也要存,老師按過「產生分組」學生就看得到小組榜
+    currentGroups: state.currentGroups,
     contactBook: state.contactBook,
     homework: state.homework,
     classTasks: state.classTasks,

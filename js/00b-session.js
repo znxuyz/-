@@ -187,6 +187,7 @@ function applyBlobToState(blob) {
   state.attendance    = blob.attendance || {};
   state.seatingLayouts = blob.seatingLayouts || [];
   state.groupSets     = blob.groupSets || [];
+  state.currentGroups = blob.currentGroups || [];
   state.contactBook   = blob.contactBook || {};
   state.homework      = blob.homework || [];
   state.classTasks    = blob.classTasks || [];

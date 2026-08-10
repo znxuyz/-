@@ -19,7 +19,8 @@ const StudentApp = {
   tab: 'pet',             // pet | rank | quiz
   rankTab: 'individual',  // individual | group
   allStudents: [],        // 全班資料,排行榜用
-  groupSet: null,         // 老師最近儲存的分組
+  groups: [],             // 目前使用的分組(id 陣列的陣列)
+  groupsName: null,       // 分組名稱,老師存過才有
   unsub: null,            // 班級即時監聽
   lastScore: undefined,   // 用來偵測加分,跳出提示
 
@@ -43,8 +44,7 @@ const StudentApp = {
       this.allStudents = blob.students || [];
       this.student = this.allStudents.find(s => s.id === this.classInfo.studentId) || null;
 
-      const sets = blob.groupSets || [];
-      this.groupSet = sets.length > 0 ? sets[sets.length - 1] : null;
+      this.readGroups(blob);
 
       // 正在作答時不要重繪,會把已經選好的答案清掉
       if (this.activeQuiz) return;
@@ -73,9 +73,7 @@ const StudentApp = {
     this.student = this.allStudents.find(s => s.id === studentId) || null;
     this.classRules = blob.rules || [];
 
-    // 排行榜用老師最近儲存的那份分組
-    const sets = blob.groupSets || [];
-    this.groupSet = sets.length > 0 ? sets[sets.length - 1] : null;
+    this.readGroups(blob);
 
     // 老師還沒把選擇收進班級資料前,先用學生自己的選擇單顯示
     this.petChoice = this.student && this.student.pet
@@ -186,16 +184,30 @@ const StudentApp = {
 
   /* ---------- 分頁:排行榜 ---------- */
 
+  /* 分組來源:老師存過的分組優先,否則用目前螢幕上那份(按過「產生分組」就有)。
+     老師只按產生沒按儲存也看得到,不用多教一個步驟。 */
+  readGroups(blob) {
+    const sets = blob.groupSets || [];
+    if (sets.length > 0) {
+      const latest = sets[sets.length - 1];
+      this.groups = latest.groups || [];
+      this.groupsName = latest.name;
+    } else {
+      this.groups = blob.currentGroups || [];
+      this.groupsName = null;
+    }
+  },
+
   renderRankTab() {
-    const hasGroups = !!(this.groupSet && this.groupSet.groups && this.groupSet.groups.length);
+    const hasGroups = !!(this.groups && this.groups.length);
     const showGroup = this.rankTab === 'group' && hasGroups;
 
     const rows = showGroup
-      ? Leaderboard.groups(this.allStudents, this.groupSet)
+      ? Leaderboard.groups(this.allStudents, this.groups)
       : Leaderboard.individual(this.allStudents);
 
     // 小組榜要高亮的是「我所屬的那一組」
-    const myId = showGroup ? this.myGroupId(rows) : this.classInfo.studentId;
+    const myId = showGroup ? this.myGroupId() : this.classInfo.studentId;
 
     const switcher = hasGroups ? `
       <div class="rank-switch">
@@ -212,10 +224,10 @@ const StudentApp = {
 
     return `
       ${switcher}
-      ${showGroup ? `<div class="rank-groupset-name">依「${escapeHtml(this.groupSet.name)}」分組</div>` : ''}
+      ${showGroup && this.groupsName
+        ? `<div class="rank-groupset-name">依「${escapeHtml(this.groupsName)}」分組</div>` : ''}
       ${Leaderboard.renderPodium(rows, { highlightId: myId, animate })}
       ${Leaderboard.renderMyRank(rows, myId, showGroup ? '我這組的名次' : '我的名次')}
-      ${Leaderboard.renderList(rows, { highlightId: myId })}
     `;
   },
 
@@ -225,10 +237,10 @@ const StudentApp = {
   },
 
   /* 找出自己在哪一組 */
-  myGroupId(groupRows) {
-    if (!this.groupSet) return null;
-    const idx = this.groupSet.groups.findIndex(members =>
-      members.some(m => m.id === this.classInfo.studentId));
+  myGroupId() {
+    if (!this.groups) return null;
+    const idx = this.groups.findIndex(members =>
+      (members || []).some(m => Leaderboard.memberId(m) === this.classInfo.studentId));
     return idx >= 0 ? 'g' + idx : null;
   },
 

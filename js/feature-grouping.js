@@ -89,6 +89,7 @@ function generateGroups() {
   });
   
   state.currentGroups = groups;
+  save();                      // 存起來,學生端的小組排行榜才看得到
   renderGroups(groups);
   toast('已產生 ' + groupCount + ' 個分組');
 }
@@ -337,6 +338,7 @@ function loadGroupSet(id) {
   const gs = state.groupSets.find(g => g.id === id);
   if (!gs) return;
   state.currentGroups = gs.groups.map(g => [...g]);
+  save();
   renderGroups(state.currentGroups);
   toast('已載入「' + gs.name + '」');
 }
