@@ -2,7 +2,7 @@
    領地佔領戰
    ────────────────────────────────────────────
    分組後才能玩。答對題目累積佔領分,在戰役時間內分數最高的一組
-   拿下那塊地。地圖由外圈往中心分階段開放。
+   拿下那塊地。地圖由外圍往內陸分階段開放。
 
    為什麼沒有裁判?
    地圖不是誰寫出來的,而是「重播」出來的 ——
@@ -16,7 +16,24 @@
        讀不到的文件裡,但規則讀得到。
      · 重播規則:相鄰、開放階段、基地保護、戰役時間都在重播時判定。
        就算有人硬塞一筆不合規的事件,重播時也會被忽略。
+
+   地圖本身不存進資料庫,只存「形狀 + 大小 + 亂數種子」,
+   由同一套產生器算出來 —— 兩千格的地圖也只佔幾十位元組。
 ============================================ */
+
+/* ---------- 可重現的亂數 ----------
+   地圖必須在每台裝置上長得一模一樣,所以不能用 Math.random。
+   給同一個種子就永遠得到同一串數字。 */
+
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 /* ---------- 六角格座標 ----------
    axial 座標 (q, r),尖角朝上。六個鄰居方向固定,
@@ -38,19 +55,14 @@ const Hex = {
     return HEX_DIRECTIONS.map(([dq, dr]) => this.key(q + dq, r + dr));
   },
 
-  /* 距離中心幾圈。用來決定階段開放 */
+  /* 離中心幾圈 */
   ring(q, r) {
     return (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2;
   },
 
-  buildMap(radius) {
-    const cells = [];
-    for (let q = -radius; q <= radius; q++) {
-      const r1 = Math.max(-radius, -q - radius);
-      const r2 = Math.min(radius, -q + radius);
-      for (let r = r1; r <= r2; r++) cells.push(this.key(q, r));
-    }
-    return cells;
+  distance(a, b) {
+    const A = this.parse(a), B = this.parse(b);
+    return (Math.abs(A.q - B.q) + Math.abs(A.q + A.r - B.q - B.r) + Math.abs(A.r - B.r)) / 2;
   },
 
   toPixel(q, r, size) {
@@ -61,11 +73,248 @@ const Hex = {
     const pts = [];
     for (let i = 0; i < 6; i++) {
       const a = Math.PI / 180 * (60 * i - 90);
-      pts.push(`${(cx + size * Math.cos(a)).toFixed(2)},${(cy + size * Math.sin(a)).toFixed(2)}`);
+      pts.push(`${(cx + size * Math.cos(a)).toFixed(1)},${(cy + size * Math.sin(a)).toFixed(1)}`);
     }
     return pts.join(' ');
   }
 };
+
+/* ============================================
+   地圖形狀
+   ────────────────────────────────────────────
+   每個產生器吃 (radius, seed) 回傳格子清單。
+   全部都是純函式 —— 同樣的輸入永遠得到同樣的地圖。
+============================================ */
+
+const MAP_SHAPES = {
+
+  hexagon: {
+    name: '六角大陸', desc: '最平衡的形狀,各組推進距離相同',
+    build(radius) {
+      const cells = [];
+      for (let q = -radius; q <= radius; q++) {
+        const r1 = Math.max(-radius, -q - radius);
+        const r2 = Math.min(radius, -q + radius);
+        for (let r = r1; r <= r2; r++) cells.push(Hex.key(q, r));
+      }
+      return cells;
+    }
+  },
+
+  rectangle: {
+    name: '橫向大陸', desc: '東西狹長,適合兩軍對峙',
+    build(radius) {
+      const cells = [];
+      const h = Math.round(radius * 1.1), w = Math.round(radius * 2.0);
+      for (let r = -h; r <= h; r++) {
+        const offset = -Math.floor(r / 2);
+        for (let q = offset - w; q <= offset + w; q++) cells.push(Hex.key(q, r));
+      }
+      return cells;
+    }
+  },
+
+  ring: {
+    name: '環形群島', desc: '中央是海,只能沿著環推進',
+    build(radius) {
+      const inner = Math.floor(radius * 0.42);
+      return MAP_SHAPES.hexagon.build(radius).filter(k => {
+        const { q, r } = Hex.parse(k);
+        return Hex.ring(q, r) > inner;
+      });
+    }
+  },
+
+  cross: {
+    name: '十字要塞', desc: '四條走廊交會於中心,中央是兵家必爭之地',
+    build(radius) {
+      const arm = Math.max(1, Math.round(radius * 0.34));
+      return MAP_SHAPES.hexagon.build(radius).filter(k => {
+        const { q, r } = Hex.parse(k);
+        const s = -q - r;
+        return Math.abs(q) <= arm || Math.abs(r) <= arm || Math.abs(s) <= arm;
+      });
+    }
+  },
+
+  star: {
+    name: '星形大陸', desc: '六個尖角,各組從角落起家',
+    build(radius) {
+      return MAP_SHAPES.hexagon.build(radius).filter(k => {
+        const { q, r } = Hex.parse(k);
+        const s = -q - r;
+        const d = Hex.ring(q, r);
+        if (d <= radius * 0.45) return true;
+        // 留下三軸附近的尖角,其餘挖掉
+        const nearAxis = Math.min(Math.abs(q), Math.abs(r), Math.abs(s));
+        return nearAxis <= radius * 0.22;
+      });
+    }
+  },
+
+  islands: {
+    name: '破碎群島', desc: '不規則島嶼與海灣,推進路線每一局都不同',
+    build(radius, seed) {
+      const rand = seededRandom(seed || 1);
+      const base = MAP_SHAPES.hexagon.build(radius);
+
+      // 撒下若干「島核」,離島核夠近的格子成為陸地
+      const coreCount = Math.max(5, Math.round(radius * 1.6));
+      const cores = [];
+      for (let i = 0; i < coreCount; i++) {
+        const ang = rand() * Math.PI * 2;
+        const dist = Math.sqrt(rand()) * radius * 0.92;
+        cores.push({
+          q: Math.round(Math.cos(ang) * dist),
+          r: Math.round(Math.sin(ang) * dist),
+          rad: radius * (0.18 + rand() * 0.22)
+        });
+      }
+
+      const land = base.filter(k => {
+        const { q, r } = Hex.parse(k);
+        return cores.some(c =>
+          Hex.distance(k, Hex.key(c.q, c.r)) <= c.rad);
+      });
+
+      // 島嶼之間必須走得到,否則有的組會被困在孤島上
+      return MAP_SHAPES._connect(land, base, rand);
+    }
+  },
+
+  cave: {
+    name: '洞窟迷宮', desc: '蜿蜒的通道與死路,適合長期戰',
+    build(radius, seed) {
+      const rand = seededRandom(seed || 1);
+      const base = MAP_SHAPES.hexagon.build(radius);
+      const set = new Set(base);
+
+      // 隨機挖掉一部分,再補上連通性 —— 得到有機的洞窟輪廓
+      const wall = new Set();
+      base.forEach(k => {
+        const { q, r } = Hex.parse(k);
+        const edge = Hex.ring(q, r) > radius - 1;
+        if (!edge && rand() < 0.34) wall.add(k);
+      });
+
+      const land = base.filter(k => !wall.has(k));
+      return MAP_SHAPES._connect(land, base, rand);
+    }
+  },
+
+  /* 把不相連的區塊接起來。
+     不連通的地圖會讓某些組被困在孤島上,整局動彈不得,
+     所以這一步是必要的,不是美化。 */
+  _connect(land, universe, rand) {
+    let set = new Set(land);
+
+    // 最多修幾輪。正常一兩輪就收斂,這只是避免萬一無限迴圈
+    for (let round = 0; round < 40; round++) {
+      const blobs = this._components(set);
+      if (blobs.length <= 1) break;
+
+      blobs.sort((a, b) => b.length - a.length);
+      const main = blobs[0];
+      const mainSet = new Set(main);
+
+      for (let i = 1; i < blobs.length; i++) {
+        const blob = blobs[i];
+        // 太小的碎島直接丟掉,不值得為它挖路
+        if (blob.length < 3) {
+          blob.forEach(k => set.delete(k));
+          continue;
+        }
+        // 用重心找出大概方向,再各自取最近的一格 —— 避免兩兩比對的 O(n²)
+        const c = this._centroid(blob);
+        const anchor = this._nearest(main, c);
+        const from = this._nearest(blob, Hex.parse(anchor));
+        this._carve(set, from, anchor);
+        blob.forEach(k => mainSet.add(k));
+      }
+    }
+
+    return [...set];
+  },
+
+  _components(set) {
+    const seen = new Set();
+    const blobs = [];
+    set.forEach(start => {
+      if (seen.has(start)) return;
+      const blob = [];
+      const queue = [start];
+      seen.add(start);
+      while (queue.length) {
+        const k = queue.pop();
+        blob.push(k);
+        const { q, r } = Hex.parse(k);
+        Hex.neighbors(q, r).forEach(n => {
+          if (set.has(n) && !seen.has(n)) { seen.add(n); queue.push(n); }
+        });
+      }
+      blobs.push(blob);
+    });
+    return blobs;
+  },
+
+  _centroid(cells) {
+    let q = 0, r = 0;
+    cells.forEach(k => { const p = Hex.parse(k); q += p.q; r += p.r; });
+    return { q: q / cells.length, r: r / cells.length };
+  },
+
+  _nearest(cells, point) {
+    let best = null, bestD = Infinity;
+    cells.forEach(k => {
+      const p = Hex.parse(k);
+      // 立方座標下的距離,不用開根號也準確
+      const d = (Math.abs(p.q - point.q) + Math.abs(p.r - point.r)
+               + Math.abs(p.q + p.r - point.q - point.r)) / 2;
+      if (d < bestD) { bestD = d; best = k; }
+    });
+    return best;
+  },
+
+  /* 沿六角格的直線挖出一條走廊。
+     用立方座標內插再取整,每一步都保證相鄰,不會跳格 —— 
+     這是前一版用平面內插造成地圖斷開的原因。 */
+  _carve(set, fromKey, toKey) {
+    const A = Hex.parse(fromKey), B = Hex.parse(toKey);
+    const a = { x: A.q, y: A.r, z: -A.q - A.r };
+    const b = { x: B.q, y: B.r, z: -B.q - B.r };
+    const N = Math.max(1, (Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.z - b.z)) / 2);
+
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const p = this._cubeRound(
+        a.x + (b.x - a.x) * t,
+        a.y + (b.y - a.y) * t,
+        a.z + (b.z - a.z) * t
+      );
+      set.add(Hex.key(p.x, p.y));
+    }
+  },
+
+  /* 立方座標取整:三個軸各自四捨五入後,把誤差最大的那一軸
+     反推回來,確保 x + y + z 仍然等於 0 */
+  _cubeRound(x, y, z) {
+    let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+    const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+    if (dx > dy && dx > dz) rx = -ry - rz;
+    else if (dy > dz) ry = -rx - rz;
+    else rz = -rx - ry;
+    return { x: rx, y: ry, z: rz };
+  }
+};
+
+/* 地圖規模。半徑決定格子數,實際數量依形狀而異 */
+const MAP_SIZES = [
+  { id: 'S',  label: '小',   radius: 6,  note: '一節課' },
+  { id: 'M',  label: '中',   radius: 10, note: '幾節課' },
+  { id: 'L',  label: '大',   radius: 15, note: '一個月' },
+  { id: 'XL', label: '超大', radius: 21, note: '一學期' },
+  { id: 'XXL',label: '史詩', radius: 26, note: '一學年' }
+];
 
 const GROUP_COLORS = [
   '#c25b4e', '#4a7c62', '#5b8ba8', '#c8a44d',
@@ -84,13 +333,25 @@ const DIFFICULTY = {
 
 const Territory = {
 
+  /* 產生地圖格子。config 只存形狀與種子,格子每次算出來 */
+  cellsOf(config) {
+    const shape = MAP_SHAPES[config.shape] || MAP_SHAPES.hexagon;
+    return shape.build(config.radius, config.seed || 1);
+  },
+
   /* ---------- 開局設定 ---------- */
 
   createConfig(groups, opts) {
-    const radius = opts.radius || 4;
-    const cells = Hex.buildMap(radius);
+    const shape = MAP_SHAPES[opts.shape] ? opts.shape : 'hexagon';
+    const radius = opts.radius || 10;
+    const seed = opts.seed || (Date.now() % 2147483647);
+    const cells = MAP_SHAPES[shape].build(radius, seed);
+
+    const depth = this.computeDepth(cells);
+    const maxDepth = Math.max(...Object.values(depth));
+
     const bases = {};
-    this.pickStarts(cells, groups.length, radius).forEach((key, i) => {
+    this.pickStarts(cells, depth, groups.length).forEach((key, i) => {
       if (key) bases[key] = i;
     });
 
@@ -103,105 +364,155 @@ const Territory = {
     });
 
     return {
-      radius,
+      shape, radius, seed, maxDepth,
       threshold: opts.threshold || 5,           // 拿下一格至少要累積幾分
       battleSeconds: opts.battleSeconds || 90,  // 一場地塊爭奪持續多久
       stageMode: opts.stageMode || 'auto',      // auto = 依倒數自動開放 / manual = 老師手動
-      stageSeconds: opts.stageSeconds || 300,   // 自動模式下每圈開放的間隔
+      stageSeconds: opts.stageSeconds || 300,   // 自動模式下每階段的間隔
       openDepth: 1,                             // 手動模式用:已開放到第幾層
       groupCount: groups.length,
-      bases,
-      memberGroup,
+      bases, memberGroup,
       status: 'running',
       startedAt: Date.now()
     };
   },
 
-  pickStarts(cells, groupCount, radius) {
-    const ring = cells.filter(k => {
+  /* ---------- 內陸深度 ----------
+     從地圖外緣往內做 BFS,每一格記下離邊界幾步。
+     用這個取代原本的「第幾圈」,任何形狀都適用 ——
+     不規則地圖也能正確地由外往內開放。 */
+
+  computeDepth(cells) {
+    const set = new Set(cells);
+    const depth = {};
+    const queue = [];
+
+    cells.forEach(k => {
       const { q, r } = Hex.parse(k);
-      return Hex.ring(q, r) === radius;
+      // 六個鄰居沒住滿就是邊界
+      const isEdge = Hex.neighbors(q, r).some(n => !set.has(n));
+      if (isEdge) { depth[k] = 0; queue.push(k); }
     });
-    // 依角度排序,才是真的沿著外圈等距分佈
-    ring.sort((a, b) => {
-      const pa = Hex.parse(a), pb = Hex.parse(b);
-      const A = Hex.toPixel(pa.q, pa.r, 1), B = Hex.toPixel(pb.q, pb.r, 1);
-      return Math.atan2(A.y, A.x) - Math.atan2(B.y, B.x);
-    });
-    const step = ring.length / groupCount;
-    return Array.from({ length: groupCount }, (_, i) => ring[Math.floor(i * step)]);
+
+    for (let i = 0; i < queue.length; i++) {
+      const k = queue[i];
+      const { q, r } = Hex.parse(k);
+      Hex.neighbors(q, r).forEach(n => {
+        if (set.has(n) && depth[n] === undefined) {
+          depth[n] = depth[k] + 1;
+          queue.push(n);
+        }
+      });
+    }
+    return depth;
+  },
+
+  /* 深度表每次重播都要用,但只跟形狀有關,算一次就好 */
+  depthOf(config) {
+    const key = `${config.shape}_${config.radius}_${config.seed}`;
+    if (this._depthCache && this._depthCache.key === key) return this._depthCache.depth;
+    const depth = this.computeDepth(this.cellsOf(config));
+    this._depthCache = { key, depth };
+    return depth;
+  },
+
+  /* ---------- 起始基地 ----------
+     從最外緣挑,並且盡量互相遠離。用貪婪的最遠點取樣:
+     先挑一個,之後每次挑「離已選點最遠」的那一格。
+     這對任何形狀都有效,不像照角度排序只適用於規則圖形。 */
+
+  pickStarts(cells, depth, groupCount) {
+    const edge = cells.filter(k => depth[k] === 0);
+    if (edge.length === 0) return cells.slice(0, groupCount);
+
+    const picked = [edge[0]];
+    while (picked.length < groupCount) {
+      let best = null, bestD = -1;
+      edge.forEach(k => {
+        if (picked.includes(k)) return;
+        const d = Math.min(...picked.map(p => Hex.distance(k, p)));
+        if (d > bestD) { bestD = d; best = k; }
+      });
+      if (!best) break;
+      picked.push(best);
+    }
+    return picked;
   },
 
   /* ---------- 階段開放 ----------
-     從最外圈往中心開。自動模式下由經過的時間算出來,
-     所以不需要任何人定時去寫資料 —— 每台裝置各自算,結果一樣。 */
+     由外緣往內陸開。自動模式由經過的時間算出來,
+     不需要任何人定時寫資料 —— 每台裝置各自算,結果一樣。 */
 
   openDepthAt(config, atTime) {
     if (config.stageMode === 'manual') return config.openDepth || 1;
     const elapsed = Math.max(0, (atTime - config.startedAt) / 1000);
-    return Math.min(config.radius + 1, 1 + Math.floor(elapsed / config.stageSeconds));
+    return Math.min(config.maxDepth + 1, 1 + Math.floor(elapsed / config.stageSeconds));
   },
 
-  isOpen(config, hexKey, atTime) {
-    const { q, r } = Hex.parse(hexKey);
-    // 外圈的 ring 值最大,openDepth 每加一就往中心多開一圈
-    return Hex.ring(q, r) >= config.radius - this.openDepthAt(config, atTime);
+  isOpenDepth(config, d, atTime) {
+    return d < this.openDepthAt(config, atTime);
   },
 
-  /* 下一階段什麼時候開。手動模式或已全開時回傳 null */
   nextStageAt(config) {
     if (config.stageMode === 'manual') return null;
-    const depth = this.openDepthAt(config, Date.now());
-    if (depth > config.radius) return null;
-    return config.startedAt + depth * config.stageSeconds * 1000;
+    const d = this.openDepthAt(config, Date.now());
+    if (d > config.maxDepth) return null;
+    return config.startedAt + d * config.stageSeconds * 1000;
   },
 
   /* ---------- 重播 ----------
-     events 必須已依伺服器時間排序。回傳當下的地圖與易主紀錄。 */
+     events 必須已依伺服器時間排序。 */
 
   replay(config, events, now) {
     now = now || Date.now();
+    const depth = this.depthOf(config);
 
     const map = {};
-    Hex.buildMap(config.radius).forEach(k => {
-      map[k] = { owner: null, battle: null };
+    this.cellsOf(config).forEach(k => {
+      map[k] = { owner: null, battle: null, depth: depth[k] || 0 };
     });
     Object.entries(config.bases || {}).forEach(([k, g]) => {
-      if (map[k]) map[k] = { owner: Number(g), battle: null, isBase: true };
+      if (map[k]) { map[k].owner = Number(g); map[k].isBase = true; }
     });
 
     const log = [];
+    // 只追蹤交戰中的格子。地圖上千格時,每筆事件都掃全圖會慢到不能用
+    const active = new Set();
 
     (events || []).forEach(ev => {
       const at = ev.at;
-      // 先結算這個時間點之前就該結束的戰役,順序才正確
-      this.resolveBattles(config, map, at, log);
+      this.resolveBattles(config, map, active, at, log);
 
       const cell = map[ev.hexKey];
       if (!cell) return;                                          // 不存在的格子
       if (cell.isBase) return;                                    // 基地不可攻佔
       if (cell.owner === ev.groupIdx) return;                     // 自己的地不用打
-      if (!this.isOpen(config, ev.hexKey, at)) return;            // 還沒開放的區域
+      if (!this.isOpenDepth(config, cell.depth, at)) return;      // 還沒開放的區域
       if (!this.adjacentTo(map, ev.hexKey, ev.groupIdx)) return;  // 必須與自己領地相鄰
 
       if (!cell.battle) {
         cell.battle = { endsAt: at + config.battleSeconds * 1000, points: {} };
+        active.add(ev.hexKey);
       }
       const g = String(ev.groupIdx);
       cell.battle.points[g] = (cell.battle.points[g] || 0) + ev.points;
     });
 
-    this.resolveBattles(config, map, now, log);
+    this.resolveBattles(config, map, active, now, log);
 
     return { map, log };
   },
 
-  /* 結算所有已到期的戰役。達到門檻且分數最高的一組拿下;
+  /* 結算已到期的戰役。達到門檻且分數最高的一組拿下;
      同分或都沒達標就沒人拿到,地塊維持原狀。 */
-  resolveBattles(config, map, atTime, log) {
-    Object.keys(map).forEach(k => {
+  resolveBattles(config, map, active, atTime, log) {
+    if (active.size === 0) return;
+    const done = [];
+
+    active.forEach(k => {
       const cell = map[k];
-      if (!cell.battle || cell.battle.endsAt > atTime) return;
+      if (!cell || !cell.battle || cell.battle.endsAt > atTime) return;
+      done.push(k);
 
       const ranked = Object.entries(cell.battle.points)
         .map(([g, p]) => ({ groupIdx: Number(g), points: p }))
@@ -221,6 +532,8 @@ const Territory = {
       }
       cell.battle = null;
     });
+
+    done.forEach(k => active.delete(k));
   },
 
   adjacentTo(map, hexKey, groupIdx) {
@@ -239,7 +552,7 @@ const Territory = {
       Hex.neighbors(q, r).forEach(n => {
         const t = map[n];
         if (!t || t.owner === groupIdx || t.isBase) return;
-        if (!this.isOpen(config, n, now)) return;
+        if (!this.isOpenDepth(config, t.depth, now)) return;
         targets.add(n);
       });
     });
@@ -254,12 +567,28 @@ const Territory = {
     return counts
       .map((count, groupIdx) => ({ groupIdx, count }))
       .sort((a, b) => b.count - a.count);
+  },
+
+  /* 畫面用的指紋。地圖上千格時,沒變就不該重繪 */
+  signature(config, map, now) {
+    const parts = [this.openDepthAt(config, now || Date.now())];
+    Object.keys(map).forEach(k => {
+      const c = map[k];
+      if (c.owner !== null) parts.push(k + ':' + c.owner);
+      if (c.battle) {
+        parts.push(k + '!' + Object.entries(c.battle.points).map(e => e.join('')).join(''));
+      }
+    });
+    return parts.join('|');
   }
 };
 
 /* ============================================
    地圖繪製(老師端與學生端共用)
 ============================================ */
+
+/* 大地圖有上千格,重繪成本高。指紋沒變就整段跳過。 */
+let _lastMapSig = null;
 
 function renderHexMap(config, map, opts) {
   const o = opts || {};
@@ -273,11 +602,15 @@ function renderHexMap(config, map, opts) {
     const { q, r } = Hex.parse(k);
     const p = Hex.toPixel(q, r, size);
     pos[k] = p;
-    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
   });
   const pad = size * 1.4;
-  const vb = [minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2];
+  const vw = (maxX - minX) + pad * 2;
+  const vh = (maxY - minY) + pad * 2;
+  const vb = [minX - pad, minY - pad, vw, vh];
 
   const targets = o.groupIdx != null
     ? Territory.targetsFor(config, map, o.groupIdx, now) : new Set();
@@ -285,20 +618,27 @@ function renderHexMap(config, map, opts) {
   const polys = cells.map(k => {
     const cell = map[k];
     const p = pos[k];
-    const open = Territory.isOpen(config, k, now);
+    const open = Territory.isOpenDepth(config, cell.depth, now);
     const owned = cell.owner !== null;
-    const fill = !open ? '#cfc9ba'
-               : owned ? GROUP_COLORS[cell.owner % GROUP_COLORS.length]
-               : '#e8e2d4';
     const canAttack = targets.has(k);
+    const pts = Hex.corners(p.x, p.y, size);
 
-    // 交戰中的格子:各組分數畫成一條比例長條,誰領先一目了然
+    // 未開放的區域用深色石板 + 斜線紋,和「空白但可打」的淺色明顯區隔
+    if (!open) {
+      return `<g class="hex locked">
+        <polygon points="${pts}" fill="#4a4740" />
+        <polygon points="${pts}" fill="url(#lockHatch)" />
+      </g>`;
+    }
+
+    const fill = owned ? GROUP_COLORS[cell.owner % GROUP_COLORS.length] : '#f0ead9';
+
     let battleMarks = '';
     if (cell.battle) {
       const ranked = Object.entries(cell.battle.points)
-        .map(([g, pts]) => ({ g: Number(g), pts }))
+        .map(([g, pts2]) => ({ g: Number(g), pts: pts2 }))
         .sort((a, b) => b.pts - a.pts);
-      const total = ranked.reduce((s, e) => s + e.pts, 0) || 1;
+      const total = ranked.reduce((s2, e) => s2 + e.pts, 0) || 1;
       let x = p.x - size * 0.62;
       battleMarks = ranked.map(e => {
         const w = (size * 1.24) * (e.pts / total);
@@ -307,23 +647,58 @@ function renderHexMap(config, map, opts) {
         x += w;
         return rect;
       }).join('') +
-      `<text x="${p.x}" y="${(p.y + 5).toFixed(1)}" class="hex-battle-mark">⚔</text>`;
+      `<text x="${p.x.toFixed(1)}" y="${(p.y + 5).toFixed(1)}" class="hex-battle-mark">⚔</text>`;
     }
 
-    return `
-      <g class="hex ${canAttack ? 'attackable' : ''} ${cell.isBase ? 'base' : ''}
-                 ${open ? '' : 'locked'} ${cell.battle ? 'in-battle' : ''}"
-         ${canAttack && o.onClick ? `onclick="${o.onClick}('${k}')"` : ''}>
-        <polygon points="${Hex.corners(p.x, p.y, size)}"
-                 fill="${fill}" stroke="#faf7f0" stroke-width="2"
-                 opacity="${!open ? 0.35 : owned ? 0.9 : 0.55}" />
-        ${cell.isBase ? `<text x="${p.x}" y="${p.y + 5}" class="hex-base-mark">★</text>` : ''}
-        ${battleMarks}
-      </g>`;
+    return `<g class="hex ${canAttack ? 'attackable' : ''} ${cell.isBase ? 'base' : ''}
+                 ${cell.battle ? 'in-battle' : ''}"
+      ${canAttack && o.onClick ? `onclick="${o.onClick}('${k}')"` : ''}>
+      <polygon points="${pts}" fill="${fill}" stroke="#faf7f0" stroke-width="2"
+               ${owned ? '' : 'stroke-dasharray="0"'} />
+      ${cell.isBase ? `<text x="${p.x.toFixed(1)}" y="${(p.y + 6).toFixed(1)}" class="hex-base-mark">★</text>` : ''}
+      ${battleMarks}
+    </g>`;
   }).join('');
 
-  return `<svg class="hex-map" viewBox="${vb.join(' ')}"
-               preserveAspectRatio="xMidYMid meet">${polys}</svg>`;
+  // 大地圖放進可捲動的容器,並提供縮放 —— 否則兩千格縮成一片馬賽克
+  const zoom = o.zoom || 1;
+  const width = Math.round(Math.min(vw, 1100) * zoom);
+
+  return `
+    <div class="hex-map-wrap">
+      <div class="hex-map-tools">
+        <button class="btn btn-ghost btn-small" onclick="territoryZoom(-1)">－</button>
+        <span class="hex-zoom-label">${Math.round(zoom * 100)}%</span>
+        <button class="btn btn-ghost btn-small" onclick="territoryZoom(1)">＋</button>
+        <span class="hex-legend">
+          <span class="lg lg-open"></span>可佔領
+          <span class="lg lg-lock"></span>未開放
+          <span class="lg lg-battle"></span>交戰中
+        </span>
+      </div>
+      <div class="hex-map-scroll">
+        <svg class="hex-map" width="${width}" viewBox="${vb.join(' ')}"
+             preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="lockHatch" width="7" height="7" patternUnits="userSpaceOnUse"
+                     patternTransform="rotate(45)">
+              <rect width="7" height="7" fill="rgba(0,0,0,0)" />
+              <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(255,255,255,0.13)" stroke-width="3" />
+            </pattern>
+          </defs>
+          ${polys}
+        </svg>
+      </div>
+    </div>`;
+}
+
+/* 縮放級距。上千格的地圖預設會縮得很小,放大才看得清楚 */
+let _territoryZoom = 1;
+function territoryZoom(dir) {
+  _territoryZoom = Math.max(0.5, Math.min(6, _territoryZoom + dir * 0.5));
+  _lastMapSig = null;                       // 強制重繪
+  if (typeof StudentApp !== 'undefined' && StudentApp.tab === 'war') StudentApp.render();
+  else renderTerritoryLive();
 }
 
 function renderStandings(config, map, highlightGroup) {
@@ -437,8 +812,12 @@ async function startTerritoryGame() {
   if (state.territoryQuestions.length === 0) { toast('題庫是空的,先新增幾題'); return; }
   if (TerritoryGame.config && !confirm('目前有一局進行中,重新開始會清空現有戰況。確定嗎?')) return;
 
+  const sizeId = document.getElementById('tgSize').value;
+  const size = MAP_SIZES.find(s => s.id === sizeId) || MAP_SIZES[1];
   const config = Territory.createConfig(groups, {
-    radius: parseInt(document.getElementById('tgRadius').value) || 4,
+    shape: document.getElementById('tgShape').value,
+    radius: size.radius,
+    seed: Date.now() % 2147483647,
     threshold: parseInt(document.getElementById('tgThreshold').value) || 5,
     battleSeconds: parseInt(document.getElementById('tgBattle').value) || 90,
     stageMode: document.getElementById('tgStageMode').value,
@@ -449,7 +828,7 @@ async function startTerritoryGame() {
     await publishTerritoryQuestions();
     await Cloud.clearTerritoryEvents(state.classId);
     await Cloud.saveTerritoryConfig(state.classId, config);
-    toast(`✦ 領地戰開始!${Hex.buildMap(config.radius).length} 格,${groups.length} 組`);
+    toast(`✦ 領地戰開始!${MAP_SHAPES[config.shape].name} ${Territory.cellsOf(config).length} 格,${groups.length} 組`);
   } catch (e) {
     console.error(e);
     toast('開局失敗:' + e.message);
@@ -468,7 +847,7 @@ async function endTerritoryGame() {
 async function openNextRing() {
   const c = TerritoryGame.config;
   if (!c) return;
-  const depth = Math.min(c.radius + 1, (c.openDepth || 1) + 1);
+  const depth = Math.min(c.maxDepth + 1, (c.openDepth || 1) + 1);
   await Cloud.saveTerritoryConfig(state.classId, { ...c, openDepth: depth });
   toast(`已開放到第 ${depth} 層`);
 }
@@ -534,6 +913,13 @@ const TerritoryGame = {
 function renderTerritoryLive() {
   const board = document.getElementById('territoryBoard');
   if (!board || !board.offsetParent) return;
+
+  // 上千格的地圖每秒重繪很貴。狀態沒變就不動。
+  const c = TerritoryGame.config;
+  const sig = c ? Territory.signature(c, TerritoryGame.map) : 'none';
+  if (sig === _lastMapSig) return;
+  _lastMapSig = sig;
+
   renderTerritoryBoard();
   renderTerritoryFeed();
 }
@@ -558,19 +944,21 @@ function renderTerritoryBoard() {
   el.innerHTML = `
     <div class="territory-status">
       <span class="territory-badge ${c.status}">${c.status === 'running' ? '進行中' : '已結束'}</span>
-      <span>${Object.keys(TerritoryGame.map).length} 格 · 佔領門檻 ${c.threshold} 分 ·
+      <span>${MAP_SHAPES[c.shape] ? MAP_SHAPES[c.shape].name : ''} ·
+            ${Object.keys(TerritoryGame.map).length} 格 · 門檻 ${c.threshold} 分 ·
             爭奪 ${c.battleSeconds} 秒</span>
       <span class="territory-stage">
-        已開放 ${depth} 層${nextAt ? ` · 下一層 ${formatCountdown(nextAt - Date.now())}` : ' · 全部開放'}
+        開放 ${depth}/${c.maxDepth + 1} 階段${
+          nextAt ? ` · 下一階段 ${formatCountdown(nextAt - Date.now())}` : ' · 已全部開放'}
       </span>
       <div style="flex:1"></div>
-      ${c.stageMode === 'manual' && depth <= c.radius
+      ${c.stageMode === 'manual' && depth <= c.maxDepth
         ? '<button class="btn btn-accent btn-small" onclick="openNextRing()">開放下一圈</button>' : ''}
       ${c.status === 'running'
         ? '<button class="btn btn-ghost btn-small" onclick="endTerritoryGame()">結束這一局</button>' : ''}
     </div>
     ${renderStandings(c, TerritoryGame.map)}
-    ${renderHexMap(c, TerritoryGame.map, {})}`;
+    ${renderHexMap(c, TerritoryGame.map, { zoom: _territoryZoom })}`;
 }
 
 function renderTerritoryFeed() {
@@ -594,6 +982,7 @@ function renderTerritoryFeed() {
 }
 
 function renderTerritoryView() {
+  fillTerritoryOptions();
   const activeSubtab = document.querySelector('#territoryView .sub-tab.active');
   const name = activeSubtab ? activeSubtab.dataset.subtab : 'tgBoard';
   if (name === 'tgBoard') { renderTerritoryBoard(); renderTerritoryFeed(); }
@@ -605,4 +994,39 @@ function toggleStageSeconds() {
   const auto = document.getElementById('tgStageMode').value === 'auto';
   document.getElementById('tgStageSeconds').style.display = auto ? '' : 'none';
   document.getElementById('tgStageUnit').style.display = auto ? '' : 'none';
+}
+
+/* 把形狀與規模的選項填進下拉選單,並顯示這一組合有幾格 */
+function fillTerritoryOptions() {
+  const shapeSel = document.getElementById('tgShape');
+  const sizeSel = document.getElementById('tgSize');
+  if (!shapeSel || shapeSel.options.length > 0) return;
+
+  Object.entries(MAP_SHAPES)
+    .filter(([k]) => !k.startsWith('_'))
+    .forEach(([id, sh]) => {
+      shapeSel.insertAdjacentHTML('beforeend',
+        `<option value="${id}">${sh.name}</option>`);
+    });
+
+  MAP_SIZES.forEach(sz => {
+    sizeSel.insertAdjacentHTML('beforeend',
+      `<option value="${sz.id}" ${sz.id === 'M' ? 'selected' : ''}>${sz.label} · ${sz.note}</option>`);
+  });
+
+  describeShape();
+}
+
+function describeShape() {
+  const el = document.getElementById('tgShapeDesc');
+  if (!el) return;
+  const shape = MAP_SHAPES[document.getElementById('tgShape').value];
+  const size = MAP_SIZES.find(s => s.id === document.getElementById('tgSize').value);
+  if (!shape || !size) return;
+
+  // 不規則地圖的格子數會因種子而異,這裡取一個樣本讓老師有概念
+  const count = shape.build(size.radius, 20260810).length;
+  el.innerHTML = `
+    <strong>${shape.name}</strong> · ${shape.desc}<br>
+    這個組合約 <strong>${count}</strong> 格,預估可玩 <strong>${size.note}</strong>。`;
 }

@@ -635,7 +635,7 @@ Object.assign(StudentApp, {
     if (c.status !== 'running') {
       return `${renderStandings(c, map, groupIdx)}
               <div class="student-empty">這一局已經結束了</div>
-              ${renderHexMap(c, map, {})}`;
+              ${renderHexMap(c, map, { zoom: _territoryZoom })}`;
     }
     if (groupIdx == null) {
       return '<div class="student-empty">你不在這一局的任何一組,請找老師確認分組</div>';
@@ -658,7 +658,7 @@ Object.assign(StudentApp, {
       </div>
       ${this.tResult ? `<div class="war-result ${this.tResult.ok ? 'ok' : 'no'}">${escapeHtml(this.tResult.msg)}</div>` : ''}
       ${renderStandings(c, map, groupIdx)}
-      ${renderHexMap(c, map, { groupIdx, onClick: 'StudentApp.attackHex' })}
+      ${renderHexMap(c, map, { groupIdx, onClick: 'StudentApp.attackHex', zoom: _territoryZoom })}
       <div class="war-legend">
         每塊地被攻擊後會展開 ${c.battleSeconds} 秒的爭奪,
         時間內分數最高且達到 ${c.threshold} 分的那一組拿下。<br>

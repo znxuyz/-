@@ -9,23 +9,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 
 <!-- 樣式表 -->
-<link rel="stylesheet" href="css/base.css?v=20260810d">
-<link rel="stylesheet" href="css/components.css?v=20260810d">
-<link rel="stylesheet" href="css/dashboard.css?v=20260810d">
-<link rel="stylesheet" href="css/tools.css?v=20260810d">
-<link rel="stylesheet" href="css/management.css?v=20260810d">
-<link rel="stylesheet" href="css/contact.css?v=20260810d">
-<link rel="stylesheet" href="css/shop.css?v=20260810d">
-<link rel="stylesheet" href="css/ai.css?v=20260810d">
-<link rel="stylesheet" href="css/report.css?v=20260810d">
-<link rel="stylesheet" href="css/projector.css?v=20260810d">
-<link rel="stylesheet" href="css/settings.css?v=20260810d">
-<link rel="stylesheet" href="css/auth.css?v=20260810d">
-<link rel="stylesheet" href="css/quiz.css?v=20260810d">
-<link rel="stylesheet" href="css/student.css?v=20260810d">
-<link rel="stylesheet" href="css/pet-picker.css?v=20260810d">
-<link rel="stylesheet" href="css/leaderboard.css?v=20260810d">
-<link rel="stylesheet" href="css/territory.css?v=20260810d">
+<link rel="stylesheet" href="css/base.css?v=20260810e">
+<link rel="stylesheet" href="css/components.css?v=20260810e">
+<link rel="stylesheet" href="css/dashboard.css?v=20260810e">
+<link rel="stylesheet" href="css/tools.css?v=20260810e">
+<link rel="stylesheet" href="css/management.css?v=20260810e">
+<link rel="stylesheet" href="css/contact.css?v=20260810e">
+<link rel="stylesheet" href="css/shop.css?v=20260810e">
+<link rel="stylesheet" href="css/ai.css?v=20260810e">
+<link rel="stylesheet" href="css/report.css?v=20260810e">
+<link rel="stylesheet" href="css/projector.css?v=20260810e">
+<link rel="stylesheet" href="css/settings.css?v=20260810e">
+<link rel="stylesheet" href="css/auth.css?v=20260810e">
+<link rel="stylesheet" href="css/quiz.css?v=20260810e">
+<link rel="stylesheet" href="css/student.css?v=20260810e">
+<link rel="stylesheet" href="css/pet-picker.css?v=20260810e">
+<link rel="stylesheet" href="css/leaderboard.css?v=20260810e">
+<link rel="stylesheet" href="css/territory.css?v=20260810e">
 
 <!-- SheetJS for Excel import -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -405,12 +405,12 @@
       <!-- 戰況地圖 -->
       <div id="tgBoardSubView" class="sub-view active">
         <div class="tg-setup">
-          <label>地圖大小</label>
-          <select id="tgRadius" class="rule-editor-input" style="max-width:150px;">
-            <option value="3">小 · 37 格</option>
-            <option value="4" selected>中 · 61 格</option>
-            <option value="5">大 · 91 格</option>
-          </select>
+          <label>地圖形狀</label>
+          <select id="tgShape" class="rule-editor-input" style="max-width:170px;"
+                  onchange="describeShape()"></select>
+          <label>規模</label>
+          <select id="tgSize" class="rule-editor-input" style="max-width:170px;"
+                  onchange="describeShape()"></select>
           <label>佔領門檻</label>
           <input type="number" id="tgThreshold" class="rule-editor-input" value="5" min="1" max="30" style="width:70px;" title="拿下一格至少要累積幾分" />
           <label>爭奪時間</label>
@@ -426,6 +426,8 @@
           <div style="flex:1"></div>
           <button class="btn btn-accent" onclick="startTerritoryGame()">開始新的一局</button>
         </div>
+
+        <div id="tgShapeDesc" class="tg-shape-desc"></div>
 
         <div class="quiz-mode-hint">
           ✦ 開局前請先到<strong>班級管理 → 隨機分組</strong>分好組,並在<strong>題庫</strong>分頁建立題目。<br>
@@ -900,40 +902,40 @@
 
 
 <!-- 應用程式邏輯(載入順序很重要) -->
-<script src="js/00-firebase.js?v=20260810d"></script>
-<script src="js/00b-session.js?v=20260810d"></script>
-<script src="js/00c-auth-ui.js?v=20260810d"></script>
-<script src="js/01-constants.js?v=20260810d"></script>
-<script src="js/02-state.js?v=20260810d"></script>
-<script src="js/03-storage.js?v=20260810d"></script>
-<script src="js/04-utils.js?v=20260810d"></script>
-<script src="js/05-pet-engine.js?v=20260810d"></script>
-<script src="js/06-ai.js?v=20260810d"></script>
-<script src="js/07-excel.js?v=20260810d"></script>
-<script src="js/10-nav.js?v=20260810d"></script>
-<script src="js/feature-setup.js?v=20260810d"></script>
-<script src="js/feature-students.js?v=20260810d"></script>
-<script src="js/feature-dashboard.js?v=20260810d"></script>
-<script src="js/feature-attendance.js?v=20260810d"></script>
-<script src="js/feature-picker.js?v=20260810d"></script>
-<script src="js/feature-timer.js?v=20260810d"></script>
-<script src="js/feature-seating.js?v=20260810d"></script>
-<script src="js/feature-grouping.js?v=20260810d"></script>
-<script src="js/feature-quiz.js?v=20260810d"></script>
-<script src="js/feature-territory.js?v=20260810d"></script>
-<script src="js/feature-leaderboard.js?v=20260810d"></script>
-<script src="js/feature-student-view.js?v=20260810d"></script>
-<script src="js/feature-contact-book.js?v=20260810d"></script>
-<script src="js/feature-homework.js?v=20260810d"></script>
-<script src="js/feature-shop.js?v=20260810d"></script>
-<script src="js/feature-class-tasks.js?v=20260810d"></script>
-<script src="js/feature-ai-features.js?v=20260810d"></script>
-<script src="js/feature-projector.js?v=20260810d"></script>
-<script src="js/feature-overview.js?v=20260810d"></script>
-<script src="js/feature-report.js?v=20260810d"></script>
-<script src="js/feature-rules.js?v=20260810d"></script>
-<script src="js/feature-settings.js?v=20260810d"></script>
-<script src="js/99-app.js?v=20260810d"></script>
+<script src="js/00-firebase.js?v=20260810e"></script>
+<script src="js/00b-session.js?v=20260810e"></script>
+<script src="js/00c-auth-ui.js?v=20260810e"></script>
+<script src="js/01-constants.js?v=20260810e"></script>
+<script src="js/02-state.js?v=20260810e"></script>
+<script src="js/03-storage.js?v=20260810e"></script>
+<script src="js/04-utils.js?v=20260810e"></script>
+<script src="js/05-pet-engine.js?v=20260810e"></script>
+<script src="js/06-ai.js?v=20260810e"></script>
+<script src="js/07-excel.js?v=20260810e"></script>
+<script src="js/10-nav.js?v=20260810e"></script>
+<script src="js/feature-setup.js?v=20260810e"></script>
+<script src="js/feature-students.js?v=20260810e"></script>
+<script src="js/feature-dashboard.js?v=20260810e"></script>
+<script src="js/feature-attendance.js?v=20260810e"></script>
+<script src="js/feature-picker.js?v=20260810e"></script>
+<script src="js/feature-timer.js?v=20260810e"></script>
+<script src="js/feature-seating.js?v=20260810e"></script>
+<script src="js/feature-grouping.js?v=20260810e"></script>
+<script src="js/feature-quiz.js?v=20260810e"></script>
+<script src="js/feature-territory.js?v=20260810e"></script>
+<script src="js/feature-leaderboard.js?v=20260810e"></script>
+<script src="js/feature-student-view.js?v=20260810e"></script>
+<script src="js/feature-contact-book.js?v=20260810e"></script>
+<script src="js/feature-homework.js?v=20260810e"></script>
+<script src="js/feature-shop.js?v=20260810e"></script>
+<script src="js/feature-class-tasks.js?v=20260810e"></script>
+<script src="js/feature-ai-features.js?v=20260810e"></script>
+<script src="js/feature-projector.js?v=20260810e"></script>
+<script src="js/feature-overview.js?v=20260810e"></script>
+<script src="js/feature-report.js?v=20260810e"></script>
+<script src="js/feature-rules.js?v=20260810e"></script>
+<script src="js/feature-settings.js?v=20260810e"></script>
+<script src="js/99-app.js?v=20260810e"></script>
 
 </body>
 </html>

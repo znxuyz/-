@@ -36,45 +36,114 @@
 .territory-badge.running { background: rgba(217,119,66,0.18); color: var(--sunset); }
 .territory-badge.ended   { background: var(--paper-shadow);   color: var(--ink-muted); }
 
-/* ---------- 六角地圖 ----------
-   用 SVG 的 viewBox 做等比縮放,手機到投影機都不會破版。 */
+/* ---------- 六角地圖 ---------- */
+
+.hex-map-wrap {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.hex-map-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--paper-warm);
+  border-bottom: 1px solid var(--paper-shadow);
+  flex-wrap: wrap;
+}
+
+.hex-zoom-label {
+  font-size: 12px;
+  color: var(--ink-muted);
+  min-width: 42px;
+  text-align: center;
+}
+
+.hex-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.lg {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.lg-open   { background: #f0ead9; border: 1px solid var(--paper-shadow); }
+.lg-lock   { background: #4a4740; }
+.lg-battle { background: #f0ead9; border: 2px solid var(--sunset); }
+
+/* 大地圖要能捲動,否則兩千格縮成一片馬賽克 */
+.hex-map-scroll {
+  overflow: auto;
+  max-height: 62vh;
+  background:
+    repeating-linear-gradient(45deg,
+      var(--paper-warm), var(--paper-warm) 12px,
+      #f6f1e5 12px, #f6f1e5 24px);
+}
 
 .hex-map {
-  width: 100%;
-  max-height: 60vh;
   display: block;
   margin: 0 auto;
+  height: auto;
 }
 
-.hex polygon { transition: opacity 0.25s, transform 0.25s var(--ease-out); }
+.hex polygon { transition: opacity 0.25s; }
 
 /* 可攻擊的格子會呼吸,孩子一眼看得出哪裡能打 */
-.hex.attackable {
-  cursor: pointer;
-}
+.hex.attackable { cursor: pointer; }
 
 .hex.attackable polygon {
   stroke: var(--gold);
-  stroke-width: 3;
-  animation: hex-pulse 1.8s ease-in-out infinite;
+  stroke-width: 4;
+  animation: hex-pulse 1.6s ease-in-out infinite;
 }
 
 .hex.attackable:hover polygon {
-  opacity: 1;
-  stroke-width: 4;
+  stroke-width: 5;
+  stroke: var(--sunset);
 }
 
 @keyframes hex-pulse {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 0.9; }
+  0%, 100% { stroke-opacity: 0.45; }
+  50%      { stroke-opacity: 1; }
 }
+
+/* 未開放:深色石板加斜線紋。和「空白但可打」的米色一眼分得出來 */
+.hex.locked { pointer-events: none; }
 
 .hex-base-mark {
   text-anchor: middle;
   font-size: 18px;
-  fill: rgba(255, 255, 255, 0.85);
+  fill: rgba(255, 255, 255, 0.9);
   pointer-events: none;
 }
+
+.tg-shape-desc {
+  background: var(--paper);
+  border-left: 3px solid var(--forest-light);
+  border-radius: 0 3px 3px 0;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.9;
+}
+
+.tg-shape-desc strong { color: var(--forest); }
 
 /* ---------- 各組佔領數 ---------- */
 
@@ -321,7 +390,7 @@
 
 .hex.in-battle polygon {
   stroke: var(--sunset);
-  stroke-width: 3;
+  stroke-width: 4;
 }
 
 .hex-battle-mark {
@@ -330,9 +399,6 @@
   fill: rgba(255, 255, 255, 0.9);
   pointer-events: none;
 }
-
-/* 尚未開放的區域 */
-.hex.locked { pointer-events: none; }
 
 .territory-stage {
   color: var(--sunset);
