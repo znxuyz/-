@@ -95,7 +95,12 @@ guardian-classroom/
 │   ├── report.css                      # 學期成長報表
 │   └── settings.css                    # 設定/總覽
 │
+├── firestore.rules                     # 雲端權限規則(貼到 Firebase Console)
+│
 ├── js/                                 # 邏輯(依功能分檔,前綴數字代表載入順序)
+│   ├── 00-firebase.js                  # Firebase 設定與所有雲端操作
+│   ├── 00b-session.js                  # 登入流程、身份判斷、班級切換
+│   ├── 00c-auth-ui.js                  # 登入與班級選擇畫面
 │   ├── 01-constants.js                 # 寵物資料、階段、預設規則
 │   ├── 02-state.js                     # 全域狀態物件
 │   ├── 03-storage.js                   # 儲存模組(未來換 Firebase 只改此檔)
@@ -114,6 +119,8 @@ guardian-classroom/
 │   ├── feature-grouping.js             # 分組(含手動模式)
 │   ├── feature-contact-book.js         # 聯絡簿
 │   ├── feature-homework.js             # 作業繳交追蹤
+│   ├── feature-quiz.js                 # 線上測驗:出題、開放、批改、結算
+│   ├── feature-student-view.js         # 學生端介面
 │   ├── feature-shop.js                 # 守護獸商店
 │   ├── feature-class-tasks.js          # 班級共同任務
 │   ├── feature-ai-features.js          # 三項 AI 功能 + Key 管理
@@ -191,10 +198,33 @@ API Key 只存於本機瀏覽器的 localStorage,**不會上傳任何雲端**。
 
 ---
 
+## ☁️ 雲端版(多班級 + 學生登入)
+
+系統支援兩種運作模式,開啟時自動判斷:
+
+| | 單機模式 | 雲端模式 |
+|---|---|---|
+| 資料存放 | 這台電腦的瀏覽器 | Firebase Firestore |
+| 班級數 | 1 個 | 不限,頂部下拉切換 |
+| 學生登入 | 不支援 | Google 帳號 |
+| 線上測驗 | 不支援 | 支援,答對自動加分 |
+| 費用 | 免費 | 免費(在 Firebase 免費額度內) |
+
+設定方式見 **[docs/雲端設定指南.md](docs/雲端設定指南.md)**,約 20 分鐘。
+
+**30 位學生同時操作為什麼不會亂?**
+
+關鍵在寫入權責分離:班級資料只有導師寫得動,學生只能寫自己那一份作答文件
+(文件 id 綁定學生帳號 uid)。因此再多人同時交卷也不會互相覆蓋。
+批改在老師端進行,發布給學生的題目不含正確答案。
+權限由 `firestore.rules` 強制執行,不是靠前端擋。
+
+---
+
 ## 🔧 技術細節
 
-- 純前端網頁,**無需後端伺服器**
-- 資料以 localStorage 儲存,單機使用
+- 純前端網頁,**單機模式無需後端伺服器**
+- 單機模式資料存 localStorage;雲端模式存 Firestore,localStorage 當離線快取
 - 使用 [SheetJS](https://sheetjs.com) 解析 Excel
 - 字型使用 Google Fonts 的 Noto Serif TC + Noto Sans TC
 - 設計上預留了未來接 Firebase 雲端同步的接口(只需替換 `03-storage.js`)

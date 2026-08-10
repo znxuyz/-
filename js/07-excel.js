@@ -49,7 +49,9 @@ const ExcelImport = {
     const seatCol = header.findIndex(h => h.includes('座號') || /^(no|number|#)$/i.test(h));
     const nameCol = header.findIndex(h => h.includes('姓名') || h.includes('學生') || /^name$/i.test(h));
     const petCol = header.findIndex(h => h.includes('守護獸') || h.includes('寵物'));
-    
+    const emailCol = header.findIndex(h =>
+      h.includes('信箱') || h.includes('帳號') || h.includes('電子郵件') || /e-?mail/i.test(h));
+
     if (nameCol < 0) {
       return { error: '找不到「姓名」欄位。請確認首列包含「姓名」字樣' };
     }
@@ -70,6 +72,18 @@ const ExcelImport = {
       const petName = petCol >= 0 ? String(row[petCol] || '').trim() : '';
       
       const entry = { name, seatNumber: seat };
+
+      if (emailCol >= 0) {
+        const email = String(row[emailCol] || '').trim().toLowerCase();
+        if (email) {
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            entry.email = email;
+          } else {
+            errors.push(`第 ${i + 1} 列「${name}」的信箱「${email}」格式不正確,將略過`);
+          }
+        }
+      }
+
       if (petName) {
         if (petNameToId[petName]) {
           entry.pet = petNameToId[petName];
@@ -117,6 +131,7 @@ function importStudentsFromExcel() {
         const stu = createStudent(s.name, i);
         if (s.seatNumber) stu.seatNumber = s.seatNumber;
         if (s.pet) stu.pet = s.pet;
+        if (s.email) stu.email = s.email;
         return stu;
       });
     } else {
@@ -126,12 +141,14 @@ function importStudentsFromExcel() {
       imported.forEach((s, i) => {
         const exists = existing.get(s.name);
         if (exists) {
-          // 更新座號與寵物(若 Excel 有指定)
+          // 更新座號、信箱與寵物(若 Excel 有指定)
           if (s.seatNumber) exists.seatNumber = s.seatNumber;
+          if (s.email) exists.email = s.email;
           if (s.pet && !exists.pet) exists.pet = s.pet;
         } else {
           const stu = createStudent(s.name, Date.now() + i);
           if (s.seatNumber) stu.seatNumber = s.seatNumber;
+          if (s.email) stu.email = s.email;
           if (s.pet) stu.pet = s.pet;
           state.students.push(stu);
           added++;
@@ -163,13 +180,46 @@ function importStudentsFromExcel() {
     }
     
     toast(`✦ 已匯入 ${imported.length} 位學生`);
-    
+
+    // 雲端模式:同步 email 索引,學生才能用 Google 帳號登入對到自己
+    syncRosterAfterImport();
+
     if (result.warnings && result.warnings.length > 0) {
       setTimeout(() => {
         alert('注意事項:\n\n' + result.warnings.join('\n'));
       }, 1500);
     }
   });
+}
+
+/* ============================================
+   同步名冊索引到雲端
+   ────────────────────────────────────────────
+   學生用 Google 登入時,系統靠這份索引把 email 對到
+   班級與學生編號。沒有 email 的學生不會被寫入,
+   代表他暫時只能由老師在後台操作。
+============================================ */
+
+async function syncRosterAfterImport() {
+  if (!isCloudMode()) return;
+
+  const withEmail = state.students.filter(s => s.email);
+  const without = state.students.length - withEmail.length;
+
+  if (withEmail.length === 0) {
+    toast('名單沒有信箱欄位,學生將無法自行登入');
+    return;
+  }
+
+  try {
+    await flushCloudSave();   // 先確保 blob 是最新的
+    await Cloud.syncRosterIndex(state.classId, state.className, state.students);
+    toast(`✦ ${withEmail.length} 位學生已可用 Google 登入` +
+          (without > 0 ? `(${without} 位缺信箱)` : ''));
+  } catch (e) {
+    console.error('[Cloud] 名冊同步失敗:', e);
+    toast('名冊同步失敗:' + e.message);
+  }
 }
 
 /* ============================================
@@ -181,10 +231,13 @@ function showImportTemplateHint() {
     '學生資料 Excel 範本格式\n' +
     '────────────────\n\n' +
     '需要的欄位(首列為標題):\n' +
-    '  座號 | 姓名 | 守護獸(選填)\n\n' +
+    '  座號 | 姓名 | Google信箱 | 守護獸(選填)\n\n' +
     '說明:\n' +
     '• 「姓名」為必填欄位\n' +
     '• 「座號」會用於排序\n' +
+    '• 「Google信箱」是學生自行登入的依據,\n' +
+    '   請填縣市帳號,例如 s1234@ms.school.edu.tw\n' +
+    '   欄位標題寫「信箱」「帳號」「Email」都可以\n' +
     '• 「守護獸」可填台灣特有種名稱:\n' +
     '   台灣黑熊、石虎、櫻花鉤吻鮭、帝雉、\n' +
     '   台灣藍鵲、穿山甲、山羌、台灣獼猴\n\n' +

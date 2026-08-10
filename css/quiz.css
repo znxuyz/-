@@ -1,0 +1,169 @@
+/* ============================================
+   作業測驗 — 老師端
+============================================ */
+
+.quiz-create-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.quiz-create-form input[type="text"] { flex: 2; min-width: 220px; }
+.quiz-create-form input[type="date"] { flex: 1; min-width: 140px; }
+.quiz-create-form input[type="number"] { width: 110px; }
+
+.quiz-card {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-left: 4px solid var(--moss);
+  border-radius: 3px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.quiz-card.quiz-open   { border-left-color: var(--sunset); }
+.quiz-card.quiz-closed { border-left-color: var(--ink-muted); }
+
+.quiz-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  flex-wrap: wrap;
+}
+
+.quiz-card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--forest-deep);
+}
+
+.quiz-card-meta {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 4px;
+}
+
+.quiz-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quiz-status {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  letter-spacing: 0.05em;
+}
+
+.quiz-status-draft  { background: var(--paper-shadow); color: var(--ink-soft); }
+.quiz-status-open   { background: rgba(217, 119, 66, 0.18); color: var(--sunset); }
+.quiz-status-closed { background: rgba(148, 141, 132, 0.2); color: var(--ink-muted); }
+
+/* ---------- 題目編輯 ---------- */
+
+.quiz-editor {
+  padding: 0 18px 18px;
+  border-top: 1px solid var(--paper-shadow);
+  padding-top: 16px;
+}
+
+.question-editor {
+  background: var(--paper-warm);
+  border-radius: 3px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.question-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.question-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--forest);
+}
+
+.option-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.option-row input[type="text"] { flex: 1; }
+
+.option-letter {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--moss);
+  width: 16px;
+}
+
+.question-hint {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 8px;
+}
+
+/* ---------- 成績 ---------- */
+
+.quiz-results {
+  padding: 0 18px 18px;
+  overflow-x: auto;
+}
+
+.quiz-results-empty {
+  padding: 16px 18px 20px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--paper-shadow);
+}
+
+.quiz-results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 420px;
+}
+
+.quiz-results-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--ink-muted);
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 1px solid var(--paper-shadow);
+}
+
+.quiz-results-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--paper-warm);
+}
+
+.quiz-results-table td:last-child {
+  color: var(--forest-light);
+  font-weight: 600;
+}

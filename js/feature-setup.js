@@ -1,31 +1,15 @@
 /* ============================================
    初始化
 ============================================ */
-function init() {
-  const saved = Storage.load();
-  if (saved) {
-    state = { ...state, ...saved };
-    // 對舊資料補上新欄位
-    state.students.forEach(migrateStudent);
-    // 確保新欄位有預設值
-    if (!state.contactBook) state.contactBook = {};
-    if (!state.homework) state.homework = [];
-    if (!state.classTasks) state.classTasks = [];
-    if (!state.shopHistory) state.shopHistory = [];
-    showApp();
-  } else {
-    showSetup();
-  }
-}
-
 function showSetup() {
+  hideAllTopViews();
   document.getElementById('setupView').classList.remove('hidden');
-  document.getElementById('appView').classList.add('hidden');
 }
 
 function showApp() {
-  document.getElementById('setupView').classList.add('hidden');
+  hideAllTopViews();
   document.getElementById('appView').classList.remove('hidden');
+  renderClassSwitcher();
   renderAll();
 }
 
@@ -59,6 +43,7 @@ function createStudent(name, index) {
     id: 'st_' + Date.now() + '_' + index,
     name: name,
     seatNumber: '',        // 座號(可用 Excel 匯入或設定頁修改)
+    email: '',             // Google 帳號,學生自行登入用
     pet: null,
     petName: null,
     totalPoints: 0,
@@ -79,6 +64,8 @@ function migrateStudent(s) {
   if (s.shieldUntil === undefined) s.shieldUntil = null;
   if (s.currentPoints === undefined) s.currentPoints = s.totalPoints || 0;
   if (s.seatNumber === undefined) s.seatNumber = '';
+  if (s.email === undefined) s.email = '';
+  if (!s.quizResults) s.quizResults = {};   // { quizId: { score, total, awarded, at } }
   return s;
 }
 

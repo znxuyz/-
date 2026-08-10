@@ -20,11 +20,29 @@
 <link rel="stylesheet" href="css/report.css">
 <link rel="stylesheet" href="css/projector.css">
 <link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/quiz.css">
+<link rel="stylesheet" href="css/student.css">
 
 <!-- SheetJS for Excel import -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<!-- Firebase(compat 版,可直接用 script 標籤,不需要 build 步驟) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
+
+<!-- ============================================
+     登入 / 班級選擇(雲端模式)
+============================================ -->
+<div id="gateView" class="gate-view hidden"></div>
+
+<!-- ============================================
+     學生端(由 feature-student-view.js 繪製)
+============================================ -->
+<div id="studentView" class="student-view hidden"></div>
 
 <!-- ============================================
      首次設定畫面
@@ -80,6 +98,7 @@
     <nav class="nav-tabs">
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">老師後台</button>
       <button class="nav-tab" data-view="tools" onclick="switchView('tools')">課堂工具</button>
+      <button class="nav-tab" data-view="quiz" onclick="switchView('quiz')">作業測驗</button>
       <button class="nav-tab" data-view="contact" onclick="switchView('contact')">聯絡簿</button>
       <button class="nav-tab" data-view="management" onclick="switchView('management')">班級管理</button>
       <button class="nav-tab" data-view="shop" onclick="switchView('shop')">商店任務</button>
@@ -93,6 +112,7 @@
     <div class="class-badge">
       <span id="headerClassName" class="class-badge-name">四年二班</span>
       <span id="headerTeacherName">張老師</span>
+      <div id="classSwitcher" class="class-switcher"></div>
     </div>
   </header>
   
@@ -328,6 +348,28 @@
       </div>
     </section>
     
+    <!-- ============================================
+         作業測驗(學生自行登入作答)
+    ============================================ -->
+    <section id="quizView" class="view">
+      <div class="view-header">
+        <div>
+          <div class="view-title">作業測驗</div>
+          <div class="view-subtitle">出題後開放作答,學生用 Google 帳號登入作答,答對自動累積守護獸積分</div>
+        </div>
+      </div>
+
+      <div class="quiz-create-form">
+        <input type="text" id="quizTitle" class="rule-editor-input" placeholder="測驗名稱(例:國語第三課隨堂測驗)" />
+        <input type="date" id="quizDueDate" class="rule-editor-input" title="截止日期" />
+        <input type="number" id="quizPoints" class="rule-editor-input" value="1" min="0" max="20"
+               title="每答對一題可得幾分" placeholder="每題分數" />
+        <button class="btn btn-primary btn-small" onclick="createQuiz()">＋ 建立測驗</button>
+      </div>
+
+      <div id="quizList"></div>
+    </section>
+
     <!-- ============================================
          聯絡簿(含作業繳交追蹤)
     ============================================ -->
@@ -742,6 +784,9 @@
 
 
 <!-- 應用程式邏輯(載入順序很重要) -->
+<script src="js/00-firebase.js"></script>
+<script src="js/00b-session.js"></script>
+<script src="js/00c-auth-ui.js"></script>
 <script src="js/01-constants.js"></script>
 <script src="js/02-state.js"></script>
 <script src="js/03-storage.js"></script>
@@ -758,6 +803,8 @@
 <script src="js/feature-timer.js"></script>
 <script src="js/feature-seating.js"></script>
 <script src="js/feature-grouping.js"></script>
+<script src="js/feature-quiz.js"></script>
+<script src="js/feature-student-view.js"></script>
 <script src="js/feature-contact-book.js"></script>
 <script src="js/feature-homework.js"></script>
 <script src="js/feature-shop.js"></script>

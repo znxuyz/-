@@ -1,0 +1,94 @@
+rules_version = '2';
+
+/* ============================================
+   Firestore 安全規則
+   ────────────────────────────────────────────
+   核心原則:
+   · 班級資料只有導師本人能寫
+   · 學生只能寫自己那份作答,不能改班級、不能改別人的
+   · 測驗題目學生只能讀不能寫
+   · 名冊索引只讓老師寫,學生讀自己那筆
+
+   部署方式:
+     Firebase Console → Firestore Database → 規則 分頁
+     把整份內容貼上去,按「發布」
+============================================ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    /* ---------- 使用者檔案 ---------- */
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    /* ---------- 班級 ---------- */
+    match /classes/{classId} {
+
+      function isTeacherOfThisClass() {
+        return signedIn() && resource.data.teacherUid == request.auth.uid;
+      }
+
+      // 學生要讀班級文件才能看到自己的守護獸與積分。
+      // 這代表同班同學的積分彼此看得到 —— 對班級經營來說是刻意的,
+      // 投影模式本來就是全班一起看。若要完全隱私,需改為每位學生獨立文件。
+      allow read: if signedIn();
+
+      // 只有導師本人能改班級資料,學生完全寫不進來
+      allow update, delete: if isTeacherOfThisClass();
+
+      // 建立班級時,teacherUid 必須是自己,不能冒名建給別人
+      allow create: if signedIn()
+                    && request.resource.data.teacherUid == request.auth.uid;
+
+      /* 測驗題目:學生只讀,老師才能寫 */
+      match /quizzes/{quizId} {
+        allow read: if signedIn();
+        allow write: if signedIn()
+          && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+      }
+
+      /* 學生作答:
+         · 學生只能建立/修改 id 為 {quizId}__{自己的uid} 的那一份
+         · 而且文件裡的 uid 欄位必須等於自己,不能偽造成別人
+         · 老師可以讀全部(要批改),但不能代寫 */
+      match /submissions/{subId} {
+        function isMine() {
+          return signedIn()
+                 && request.resource.data.uid == request.auth.uid
+                 && subId.matches('.*__' + request.auth.uid);
+        }
+        function isClassTeacher() {
+          return signedIn()
+            && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+        }
+
+        allow create, update: if isMine();
+        allow read: if isClassTeacher()
+                    || (signedIn() && resource.data.uid == request.auth.uid);
+        allow delete: if isClassTeacher();
+      }
+    }
+
+    /* ---------- 名冊索引 ----------
+       學生用 email 查自己屬於哪些班。
+       只允許讀自己那一筆,不能拿去掃描全校名單。
+       寫入開放給已登入者,是因為規則層無法得知寫入者是不是
+       某個班的導師(文件 id 是學生 email,不含班級資訊)。
+       實務上這是可接受的取捨:寫入者必須先知道對方 email,
+       且寫錯只會導致學生看到不存在的班級,讀不到任何資料 ——
+       真正的資料防線在上面的 classes 規則。 */
+    match /rosterIndex/{emailKey} {
+      allow read:  if signedIn() && emailKey == myEmail();
+      allow write: if signedIn();
+    }
+  }
+}

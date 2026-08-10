@@ -1,0 +1,306 @@
+/* ============================================
+   學生端 — 以手機直式操作為前提設計
+============================================ */
+
+.student-view {
+  min-height: 100vh;
+  background: var(--paper-warm);
+}
+
+.student-loading {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+.student-header {
+  background: var(--forest-deep);
+  color: var(--paper);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 3px solid var(--gold);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.student-class {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.student-name {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.student-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.student-main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+/* ---------- 守護獸 ---------- */
+
+.student-pet-card {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  box-shadow: var(--shadow-sm);
+  padding: 28px 20px;
+  text-align: center;
+}
+
+.student-pet-icon {
+  font-size: 72px;
+  line-height: 1;
+}
+
+.student-pet-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--forest-deep);
+  margin-top: 10px;
+}
+
+.student-pet-stage {
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: 0.2em;
+  margin-top: 4px;
+}
+
+.student-pet-empty {
+  background: var(--paper);
+  border: 1px dashed var(--paper-shadow);
+  border-radius: 4px;
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.student-points {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 20px;
+}
+
+.student-points > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.student-points > div > span:last-child {
+  font-size: 11px;
+  color: var(--ink-muted);
+  letter-spacing: 0.1em;
+}
+
+.student-points-num {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 28px;
+  color: var(--forest);
+  line-height: 1.2;
+}
+
+.student-progress {
+  height: 6px;
+  background: var(--paper-shadow);
+  border-radius: 3px;
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.student-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--forest-light), var(--gold));
+  transition: width 0.6s var(--ease-out);
+}
+
+.student-progress-label {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 8px;
+}
+
+/* ---------- 區塊 ---------- */
+
+.student-section { margin-top: 28px; }
+
+.student-section-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--forest);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--paper-shadow);
+}
+
+.student-empty {
+  color: var(--ink-muted);
+  font-size: 13px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ---------- 測驗清單 ---------- */
+
+.student-quiz-card {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-left: 4px solid var(--sunset);
+  border-radius: 3px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.student-quiz-card.done {
+  border-left-color: var(--forest-light);
+  opacity: 0.75;
+}
+
+.student-quiz-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.student-quiz-meta {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+.student-quiz-done {
+  font-size: 13px;
+  color: var(--forest-light);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- 作答 ---------- */
+
+.student-question {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+
+.student-question-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+
+.student-question-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--forest);
+  color: var(--paper);
+  font-size: 13px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+/* 觸控目標放大到 48px 以上,小學生用手機也好按 */
+.student-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  min-height: 52px;
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  margin-bottom: 8px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.student-option:has(input:checked) {
+  background: rgba(74, 124, 98, 0.1);
+  border-color: var(--forest-light);
+}
+
+.student-option input { width: 20px; height: 20px; flex-shrink: 0; }
+
+.student-option-letter {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--moss);
+}
+
+.student-short-input {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+  font-family: var(--font-body);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  background: var(--paper-warm);
+}
+
+.student-note {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 14px;
+}
+
+/* ---------- 積分紀錄 ---------- */
+
+.student-history {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+}
+
+.student-history-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--paper-warm);
+}
+
+.student-history-row:last-child { border-bottom: none; }
+
+.student-history-reason { color: var(--ink-soft); }
+
+.student-history-points {
+  font-family: var(--font-display);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.student-history-points.pos { color: var(--forest-light); }
+.student-history-points.neg { color: var(--sick); }

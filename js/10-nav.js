@@ -13,6 +13,7 @@ function switchView(name) {
   if (name === 'contact') renderContactView();
   if (name === 'shop') renderShopView();
   if (name === 'ai') renderAiView();
+  if (name === 'quiz') renderQuizList();
 }
 
 function switchSubTab(parent, subtab) {
