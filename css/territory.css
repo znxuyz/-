@@ -316,3 +316,37 @@
   background: rgba(74, 124, 98, 0.12);
   border-color: var(--forest-light);
 }
+
+/* ---------- 交戰中的格子 ---------- */
+
+.hex.in-battle polygon {
+  stroke: var(--sunset);
+  stroke-width: 3;
+}
+
+.hex-battle-mark {
+  text-anchor: middle;
+  font-size: 15px;
+  fill: rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+}
+
+/* 尚未開放的區域 */
+.hex.locked { pointer-events: none; }
+
+.territory-stage {
+  color: var(--sunset);
+  font-weight: 600;
+}
+
+/* 學生端的作答結果 */
+.war-result {
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.war-result.ok { background: rgba(74,124,98,0.16); color: var(--forest); }
+.war-result.no { background: rgba(194,91,78,0.14); color: var(--sick); }

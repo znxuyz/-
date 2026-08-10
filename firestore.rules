@@ -88,27 +88,56 @@ service cloud.firestore {
         allow update, delete: if isClassTeacher();
       }
 
-      /* 領地戰的地圖與題庫:學生只讀不寫。
-         題庫文件裡不含正確答案 —— 判定在老師端做。 */
+      /* 領地戰的設定與題目:學生只讀不寫。
+         answers 這一份含正確答案,學生連讀都不行 ——
+         但下面的規則讀得到,用來驗證作答。 */
       match /territory/{docId} {
-        allow read: if signedIn();
-        allow write: if signedIn()
-          && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
-      }
-
-      /* 領地戰的作答:學生只能建立自己的,而且不能自己寫判定結果。
-         建立後就不能再改,避免把 wrong 改成 correct。 */
-      match /tattempts/{attemptId} {
         function isClassTeacher() {
           return signedIn()
             && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
         }
+        // answers 只有老師讀得到;其餘(config、questions)全班可讀
+        allow read: if isClassTeacher() || (signedIn() && docId != 'answers');
+        allow write: if isClassTeacher();
+      }
+
+      /* 領地戰的作答事件。
+         這是整個遊戲唯一的真實來源 —— 地圖是由這些事件重播出來的,
+         所以驗證必須在這裡做到位。規則會比對老師設定的正確答案,
+         答錯的事件根本寫不進來;組別與佔領分也都從伺服器端的資料核對,
+         學生改前端沒有用。寫入後不可修改,免得事後竄改。 */
+      match /tevents/{eventId} {
+        function cfg() {
+          return get(/databases/$(database)/documents/classes/$(classId)/territory/config).data;
+        }
+        function answerKey() {
+          return get(/databases/$(database)/documents/classes/$(classId)/territory/answers).data.key;
+        }
+        function q() {
+          return answerKey()[request.resource.data.questionId];
+        }
+        function isClassTeacher() {
+          return signedIn()
+            && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+        }
+
         allow create: if signedIn()
-                      && request.resource.data.uid == request.auth.uid
-                      && request.resource.data.status == 'pending';
-        allow read: if isClassTeacher()
-                    || (signedIn() && resource.data.uid == request.auth.uid);
-        allow update, delete: if isClassTeacher();
+          && request.resource.data.uid == request.auth.uid
+          // 遊戲要在進行中
+          && cfg().status == 'running'
+          // 題目必須存在,而且答案要正確
+          && request.resource.data.questionId in answerKey()
+          && request.resource.data.answer == q().a
+          // 佔領分由題目難度決定,不能自己填
+          && request.resource.data.points == q().p
+          // 組別以老師的分組為準
+          && request.resource.data.groupIdx == cfg().memberGroup[request.resource.data.studentId]
+          // 時間戳一律用伺服器的,先後才不受學生裝置時鐘影響
+          && request.resource.data.at == request.time;
+
+        allow read: if signedIn();
+        allow update: if false;
+        allow delete: if isClassTeacher();
       }
 
       /* 學生作答:

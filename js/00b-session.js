@@ -80,6 +80,7 @@ const Session = {
     if (typeof TerritoryGame !== 'undefined') TerritoryGame.stop();
     if (StudentApp.unsubPurchases) StudentApp.unsubPurchases();
     if (StudentApp.unsub) StudentApp.unsub();
+    if (StudentApp.unsubTQuestions) StudentApp.unsubTQuestions();
     await Cloud.signOut();
     state.classId = null;
     state.user = null;

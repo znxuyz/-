@@ -405,26 +405,39 @@ const Cloud = {
   },
 
   /* ---------- 領地佔領戰 ----------
-     整張地圖存在一份文件的 map 欄位裡。91 格也才 2KB,
-     一次讀寫就更新完,學生端只要監聽這一份。
-     只有老師寫得動地圖;學生寫的是 tattempts 裡自己的作答單。 */
+     地圖不存在任何地方 —— 它是由 tevents 重播出來的。
+     所以這裡只有三種資料:設定、題目、作答事件。
 
-  async saveTerritoryGame(classId, game) {
+     答案存在 territory/answers,學生讀不到,但安全規則讀得到,
+     用來擋掉答錯的事件。 */
+
+  async saveTerritoryConfig(classId, config) {
     await this.db.collection('classes').doc(classId)
-      .collection('territory').doc('current').set(game);
+      .collection('territory').doc('config').set(config);
   },
 
-  watchTerritoryGame(classId, cb) {
+  watchTerritoryConfig(classId, cb) {
     return this.db.collection('classes').doc(classId)
-      .collection('territory').doc('current')
+      .collection('territory').doc('config')
       .onSnapshot(snap => cb(snap.exists ? snap.data() : null),
-        err => console.warn('[領地戰] 地圖監聽中斷:', err.message));
+        err => console.warn('[領地戰] 設定監聽中斷:', err.message));
   },
 
-  /* 題目一樣不含正確答案 */
+  /* 一次寫兩份:給學生看的(不含答案)與給規則核對的(含答案) */
   async publishTerritoryQuestions(classId, questions) {
-    await this.db.collection('classes').doc(classId)
-      .collection('territory').doc('questions').set({ questions, updatedAt: Date.now() });
+    const forStudents = questions.map(q => ({
+      id: q.id, text: q.text, options: q.options, difficulty: q.difficulty
+    }));
+    const key = {};
+    questions.forEach(q => {
+      key[q.id] = { a: q.answer, p: DIFFICULTY[q.difficulty].points };
+    });
+
+    const batch = this.db.batch();
+    const base = this.db.collection('classes').doc(classId).collection('territory');
+    batch.set(base.doc('questions'), { questions: forStudents, updatedAt: Date.now() });
+    batch.set(base.doc('answers'), { key, updatedAt: Date.now() });
+    await batch.commit();
   },
 
   watchTerritoryQuestions(classId, cb) {
@@ -434,30 +447,42 @@ const Cloud = {
         err => console.warn('[領地戰] 題庫監聽中斷:', err.message));
   },
 
-  async createTerritoryAttempt(classId, uid, payload) {
+  /* 送出一次攻擊。答錯的話會被安全規則擋下來,
+     丟出 permission-denied,呼叫端據此判定答錯。 */
+  async sendTerritoryEvent(classId, uid, payload) {
     await this.db.collection('classes').doc(classId)
-      .collection('tattempts').add({
-        ...payload, uid, status: 'pending', createdAt: Date.now()
+      .collection('tevents').add({
+        ...payload,
+        uid,
+        at: firebase.firestore.FieldValue.serverTimestamp()
       });
   },
 
-  async updateTerritoryAttempt(classId, attemptId, patch) {
-    await this.db.collection('classes').doc(classId)
-      .collection('tattempts').doc(attemptId).update(patch);
+  /* 依伺服器時間排序 —— 先後由伺服器認定,不受學生裝置時鐘影響 */
+  watchTerritoryEvents(classId, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('tevents').orderBy('at')
+      .onSnapshot(snap => {
+        const list = [];
+        snap.docs.forEach(d => {
+          const data = d.data();
+          // serverTimestamp 尚未回填時先跳過,下一次快照就會有了
+          if (!data.at || typeof data.at.toMillis !== 'function') return;
+          list.push({ id: d.id, ...data, at: data.at.toMillis() });
+        });
+        cb(list);
+      }, err => console.warn('[領地戰] 事件監聽中斷:', err.message));
   },
 
-  watchTerritoryAttempts(classId, cb) {
-    return this.db.collection('classes').doc(classId)
-      .collection('tattempts')
-      .onSnapshot(snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-        err => console.warn('[領地戰] 作答監聽中斷:', err.message));
-  },
-
-  watchMyTerritoryAttempts(classId, uid, cb) {
-    return this.db.collection('classes').doc(classId)
-      .collection('tattempts').where('uid', '==', uid)
-      .onSnapshot(snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-        err => console.warn('[領地戰] 作答監聽中斷:', err.message));
+  /* 重新開局時清掉上一局的事件 */
+  async clearTerritoryEvents(classId) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('tevents').get();
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      const batch = this.db.batch();
+      snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
   },
 
   /* ---------- 即時監聽 ----------

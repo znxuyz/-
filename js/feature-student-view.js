@@ -143,7 +143,7 @@ const StudentApp = {
         </button>
         <button class="student-tab ${this.tab === 'shop' ? 'active' : ''}"
                 onclick="StudentApp.setTab('shop')">兌換</button>
-        ${this.tGame && this.tGame.status === 'running' ? `
+        ${TerritoryGame.config && TerritoryGame.config.status === 'running' ? `
         <button class="student-tab war ${this.tab === 'war' ? 'active' : ''}"
                 onclick="StudentApp.setTab('war')">領地戰</button>` : ''}
       </nav>
@@ -593,107 +593,85 @@ const StudentApp = {
 /* ============================================
    學生端:領地佔領戰
    ────────────────────────────────────────────
-   點一塊可攻擊的地 → 隨機抽一題 → 作答 → 送出。
-   判定在老師端進行,結果透過監聽回來。
+   地圖和老師端跑同一份重播,所以兩邊看到的必然一致。
+   答錯時安全規則會擋下寫入(permission-denied),據此判定對錯 ——
+   正確答案從頭到尾沒有離開伺服器。
 ============================================ */
 
 Object.assign(StudentApp, {
-  tGame: null,
   tQuestions: [],
-  tMyAttempts: [],
   tTargetHex: null,
   tQuestion: null,
   tPickedAnswer: null,
-  unsubTGame: null,
+  tSubmitting: false,
+  tResult: null,
   unsubTQuestions: null,
-  unsubTAttempts: null,
 
   watchTerritory() {
-    const cid = this.classInfo.classId;
-
-    if (this.unsubTGame) this.unsubTGame();
-    this.unsubTGame = Cloud.watchTerritoryGame(cid, g => {
-      this.tGame = g;
+    // 重播引擎由老師端與學生端共用,這裡只是掛上自己的重繪
+    TerritoryGame.start(() => {
       if (this.tab === 'war' && !this.tQuestion) this.render();
     });
 
     if (this.unsubTQuestions) this.unsubTQuestions();
-    this.unsubTQuestions = Cloud.watchTerritoryQuestions(cid, qs => { this.tQuestions = qs; });
-
-    if (this.unsubTAttempts) this.unsubTAttempts();
-    this.unsubTAttempts = Cloud.watchMyTerritoryAttempts(cid, Cloud.uid, list => {
-      const before = this.tMyAttempts;
-      this.tMyAttempts = list;
-
-      // 剛送出的那一份被判定了 → 跳出結果
-      const justJudged = list.find(a => {
-        const old = before.find(b => b.id === a.id);
-        return old && old.status === 'pending' && a.status !== 'pending';
-      });
-      if (justJudged) {
-        toast(justJudged.message || '');
-        this.tQuestion = null;
-        this.tTargetHex = null;
-      }
-      if (this.tab === 'war') this.render();
-    });
+    this.unsubTQuestions = Cloud.watchTerritoryQuestions(
+      this.classInfo.classId, qs => { this.tQuestions = qs; });
   },
 
   myGroupIdx() {
-    if (!this.tGame || !this.tGame.memberGroup) return null;
-    const g = this.tGame.memberGroup[this.classInfo.studentId];
+    const c = TerritoryGame.config;
+    if (!c || !c.memberGroup) return null;
+    const g = c.memberGroup[this.classInfo.studentId];
     return g == null ? null : g;
   },
 
   renderWarTab() {
-    const g = this.tGame;
-    if (!g) {
-      return '<div class="student-empty">老師還沒開始領地戰</div>';
-    }
-    if (g.status !== 'running') {
-      return `${renderStandings(g, this.myGroupIdx())}
-              <div class="student-empty">這一局已經結束了</div>
-              ${renderHexMap(g, {})}`;
-    }
+    const c = TerritoryGame.config;
+    if (!c) return '<div class="student-empty">老師還沒開始領地戰</div>';
 
+    const map = TerritoryGame.map;
     const groupIdx = this.myGroupIdx();
+
+    if (c.status !== 'running') {
+      return `${renderStandings(c, map, groupIdx)}
+              <div class="student-empty">這一局已經結束了</div>
+              ${renderHexMap(c, map, {})}`;
+    }
     if (groupIdx == null) {
       return '<div class="student-empty">你不在這一局的任何一組,請找老師確認分組</div>';
     }
-
-    // 作答中
     if (this.tQuestion) return this.renderWarQuestion();
 
-    const waiting = this.tMyAttempts.some(a => a.status === 'pending');
-    const targets = Territory.targetsFor(g, groupIdx);
+    const targets = Territory.targetsFor(c, map, groupIdx);
     const color = GROUP_COLORS[groupIdx % GROUP_COLORS.length];
+    const nextAt = Territory.nextStageAt(c);
 
     return `
       <div class="war-header" style="border-color:${color}">
-        <div>
-          <div class="war-my-group" style="color:${color}">我是第 ${groupIdx + 1} 組</div>
-          <div class="war-hint">
-            ${waiting
-              ? '⏳ 老師正在批改你剛才的作答…'
-              : `點選<strong>亮起來</strong>的地塊發動攻擊(有 ${targets.size} 格可打)`}
-          </div>
+        <div class="war-my-group" style="color:${color}">我是第 ${groupIdx + 1} 組</div>
+        <div class="war-hint">
+          點選<strong>亮起來</strong>的地塊發動攻擊(有 ${targets.size} 格可打)<br>
+          ${nextAt
+            ? `下一圈地圖在 <strong>${formatCountdown(nextAt - Date.now())}</strong> 後開放`
+            : '地圖已全部開放'}
         </div>
       </div>
-      ${renderStandings(g, groupIdx)}
-      ${renderHexMap(g, { groupIdx, onClick: waiting ? null : 'StudentApp.attackHex' })}
+      ${this.tResult ? `<div class="war-result ${this.tResult.ok ? 'ok' : 'no'}">${escapeHtml(this.tResult.msg)}</div>` : ''}
+      ${renderStandings(c, map, groupIdx)}
+      ${renderHexMap(c, map, { groupIdx, onClick: 'StudentApp.attackHex' })}
       <div class="war-legend">
-        中立地塊需 ${g.threshold} 分 · 別組地塊需 ${g.threshold * Territory.ENEMY_MULTIPLIER} 分 ·
-        ★ 為起始基地,不能被攻佔
+        每塊地被攻擊後會展開 ${c.battleSeconds} 秒的爭奪,
+        時間內分數最高且達到 ${c.threshold} 分的那一組拿下。<br>
+        灰色是尚未開放的區域,★ 是各組基地,不能被攻佔。
       </div>`;
   },
 
-  /* 點下地塊 → 隨機抽一題。抽題在學生端做沒關係,
-     因為題目本來就不含答案,判定也在老師端。 */
   attackHex(hexKey) {
     if (this.tQuestions.length === 0) { toast('題庫是空的,請找老師'); return; }
     this.tTargetHex = hexKey;
     this.tQuestion = this.tQuestions[Math.floor(Math.random() * this.tQuestions.length)];
     this.tPickedAnswer = null;
+    this.tResult = null;
     this.render();
   },
 
@@ -712,20 +690,26 @@ Object.assign(StudentApp, {
   renderWarQuestion() {
     const q = this.tQuestion;
     const d = DIFFICULTY[q.difficulty] || DIFFICULTY.easy;
-    const cell = this.tGame.map[this.tTargetHex];
-    const required = Territory.requiredFor(this.tGame, this.tTargetHex);
-    const mine = cell.cap[String(this.myGroupIdx())] || 0;
+    const c = TerritoryGame.config;
+    const cell = TerritoryGame.map[this.tTargetHex] || {};
+    const mine = cell.battle ? (cell.battle.points[String(this.myGroupIdx())] || 0) : 0;
 
     return `
       <div class="war-question">
         <div class="war-q-head">
-          <span class="war-q-diff" style="background:${d.color}">${d.label} · 答對 +${d.points} 佔領分</span>
+          <span class="war-q-diff" style="background:${d.color}">
+            ${d.label} · 答對 +${d.points} 佔領分</span>
           <button class="btn btn-ghost btn-small" onclick="StudentApp.cancelWarQuestion()">放棄</button>
         </div>
 
         <div class="war-q-target">
-          攻打目標:${cell.owner === null ? '中立地塊' : '第 ' + (cell.owner + 1) + ' 組的地'}
-          <span class="war-q-progress">目前 ${mine} / ${required} 分</span>
+          <span>攻打:${cell.owner === null || cell.owner === undefined
+            ? '空白地塊' : '第 ' + (cell.owner + 1) + ' 組的地'}</span>
+          <span class="war-q-progress">
+            ${cell.battle
+              ? `我方 ${mine} 分 · 剩 ${formatCountdown(cell.battle.endsAt - Date.now())}`
+              : `尚未開戰 · 需 ${c.threshold} 分`}
+          </span>
         </div>
 
         <div class="war-q-text">${escapeHtml(q.text)}</div>
@@ -738,29 +722,47 @@ Object.assign(StudentApp, {
           </label>` : '').join('')}
 
         <button class="btn btn-primary btn-block btn-large" style="margin-top:14px;"
-                ${this.tPickedAnswer === null ? 'disabled' : ''}
+                ${this.tPickedAnswer === null || this.tSubmitting ? 'disabled' : ''}
                 onclick="StudentApp.submitWarAnswer()">
-          ${this.tPickedAnswer === null ? '請先選一個答案' : '送 出'}
+          ${this.tSubmitting ? '送出中…'
+            : this.tPickedAnswer === null ? '請先選一個答案' : '送 出'}
         </button>
       </div>`;
   },
 
+  /* 答錯時規則會拒絕寫入。這不是錯誤,而是判定結果 ——
+     正確答案不需要送到學生端,也就無從偷看。 */
   async submitWarAnswer() {
-    if (this.tPickedAnswer === null) return;
+    if (this.tPickedAnswer === null || this.tSubmitting) return;
+    this.tSubmitting = true;
+    this.render();
+
+    const groupIdx = this.myGroupIdx();
+    const points = DIFFICULTY[this.tQuestion.difficulty].points;
+
     try {
-      await Cloud.createTerritoryAttempt(this.classInfo.classId, Cloud.uid, {
+      await Cloud.sendTerritoryEvent(this.classInfo.classId, Cloud.uid, {
         studentId: this.classInfo.studentId,
         studentName: this.classInfo.name,
+        groupIdx,
         hexKey: this.tTargetHex,
         questionId: this.tQuestion.id,
-        answer: this.tPickedAnswer
+        answer: this.tPickedAnswer,
+        points
       });
-      toast('已送出,等待判定…');
-      this.tQuestion = null;
-      this.render();
+      this.tResult = { ok: true, msg: `✦ 答對!為第 ${groupIdx + 1} 組拿下 ${points} 佔領分` };
     } catch (e) {
-      console.error(e);
-      toast('送出失敗:' + e.message);
+      if (e.code === 'permission-denied') {
+        this.tResult = { ok: false, msg: '答錯了,再挑一格試試' };
+      } else {
+        console.error(e);
+        this.tResult = { ok: false, msg: '送出失敗:' + e.message };
+      }
+    } finally {
+      this.tSubmitting = false;
+      this.tQuestion = null;
+      this.tTargetHex = null;
+      this.render();
     }
   }
 });
