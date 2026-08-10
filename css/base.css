@@ -1,4 +1,61 @@
 /* ============================================
+   設計變數
+   ────────────────────────────────────────────
+   想換整套配色,改這一區就好,不必動其他檔案。
+============================================ */
+:root {
+  /* 森林 — 主色系 */
+  --forest-deep:  #1e3a2f;
+  --forest:       #2d5545;
+  --forest-light: #4a7c62;
+  --moss:         #7d9b8a;
+
+  /* 紙張 — 底色系 */
+  --paper:        #faf7f0;
+  --paper-warm:   #f3ede0;
+  --paper-shadow: #e2dccd;
+
+  /* 墨 — 文字 */
+  --ink:       #2a2723;
+  --ink-soft:  #55504a;
+  --ink-muted: #948d84;
+
+  /* 點綴色 */
+  --gold:         #c8a44d;
+  --sunset:       #d97742;
+  --sunset-light: #efb08a;
+  --plum:         #8a5a72;
+  --sky:          #5b8ba8;
+
+  /* 寵物健康狀態 */
+  --healthy: #4a7c62;
+  --mild:    #d9a441;
+  --sick:    #c25b4e;
+
+  /* 字型 */
+  --font-display: 'Noto Serif TC', serif;
+  --font-body:    'Noto Sans TC', sans-serif;
+
+  /* 陰影與動態 */
+  --shadow-sm: 0 1px 3px rgba(42, 39, 35, 0.08);
+  --shadow-md: 0 3px 10px rgba(42, 39, 35, 0.12);
+  --shadow-lg: 0 8px 28px rgba(42, 39, 35, 0.18);
+  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--paper-warm);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.hidden { display: none !important; }
+
+/* ============================================
    頂部導覽
 ============================================ */
 .app-header {

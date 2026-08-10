@@ -2,6 +2,11 @@
    全域狀態
 ============================================ */
 let state = {
+  // 帳號與班級(雲端模式才有值)
+  user: null,               // { uid, email, displayName, role }
+  classId: null,            // 目前操作中的班級 id
+  joinCode: null,           // 目前班級的加入代碼
+  myClasses: [],            // 老師:所有班級清單 / 學生:所屬班級清單
   className: '',
   teacherName: '',
   students: [],
@@ -36,5 +41,7 @@ let state = {
   // 班級任務
   classTasks: [],           // [{ id, name, description, target, reward, completed, completedAt, claimedAmount }]
   // 商店相關紀錄(個人庫存放在 student.inventory)
-  shopHistory: []           // [{ studentId, itemId, time, price }]
+  shopHistory: [],          // [{ studentId, itemId, time, price }]
+  // 作業測驗題庫
+  quizzes: []               // [{ id, title, questions, status, dueDate, pointsPerQuestion }]
 };

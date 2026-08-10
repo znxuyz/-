@@ -1,0 +1,160 @@
+/* ============================================
+   登入 / 班級選擇
+============================================ */
+
+.gate-view {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background:
+    radial-gradient(ellipse at top, rgba(74, 124, 98, 0.18), transparent 60%),
+    var(--paper-warm);
+}
+
+.gate-card {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  box-shadow: var(--shadow-lg);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.gate-card-wide { max-width: 640px; }
+
+.gate-title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 30px;
+  color: var(--forest-deep);
+  text-align: center;
+  letter-spacing: 0.08em;
+}
+
+.gate-subtitle {
+  text-align: center;
+  color: var(--moss);
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  margin-top: 6px;
+}
+
+.gate-desc {
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.9;
+  margin: 24px 0;
+  text-align: center;
+}
+
+.gate-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--paper-shadow);
+}
+
+.gate-section-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--forest);
+  margin-bottom: 6px;
+}
+
+.gate-section-desc {
+  font-size: 13px;
+  color: var(--ink-muted);
+  line-height: 1.8;
+  margin-bottom: 12px;
+}
+
+.gate-foot {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.gate-foot a { color: var(--forest-light); }
+
+/* ---------- 班級卡片 ---------- */
+
+.class-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.class-card {
+  background: var(--paper-warm);
+  border: 1px solid var(--paper-shadow);
+  border-left: 4px solid var(--gold);
+  border-radius: 3px;
+  padding: 18px 16px;
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out);
+}
+
+.class-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-left-color: var(--sunset);
+}
+
+.class-card-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--forest-deep);
+}
+
+.class-card-meta {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 4px;
+}
+
+.class-card-code {
+  font-size: 11px;
+  color: var(--moss);
+  margin-top: 8px;
+  letter-spacing: 0.1em;
+}
+
+/* ---------- 頂部班級切換器 ---------- */
+
+.class-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.class-switcher-select {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: var(--font-body);
+}
+
+.class-switcher-select option { color: var(--ink); }
+
+.sync-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.sync-status.synced  { background: rgba(74, 124, 98, 0.3);  color: #cfe8da; }
+.sync-status.syncing { background: rgba(200, 164, 77, 0.3); color: #f0dfae; }
+.sync-status.error   { background: rgba(194, 91, 78, 0.35); color: #f3c9c4; }
+.sync-status.local   { background: rgba(255, 255, 255, 0.12); color: var(--paper); }

@@ -14,6 +14,7 @@ function renderAll() {
   if (proj) proj.textContent = state.className;
   
   renderStudentList();
+  renderQuizList();
   renderSelectedStudent();
   renderRuleGrid();
   renderProjector();
@@ -27,5 +28,5 @@ function renderAll() {
 ============================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
-  init();
+  Session.boot();
 });

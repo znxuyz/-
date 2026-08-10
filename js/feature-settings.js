@@ -32,8 +32,24 @@ function updateStudents() {
   toast('學生名單已更新');
 }
 
-function resetAll() {
-  if (!confirm('確定要清除所有資料嗎?此動作無法復原。')) return;
-  Storage.clear();
+async function resetAll() {
+  const target = state.classId
+    ? `班級「${state.className}」的雲端資料`
+    : '本機的所有資料';
+  if (!confirm(`確定要清除${target}嗎?此動作無法復原。`)) return;
+
+  // 雲端模式下再確認一次 — 這會刪掉整個班,不只是這台電腦的資料
+  if (state.classId) {
+    if (!confirm('這會連同其他裝置上的資料一起刪除,包含學生的守護獸與所有測驗成績。真的要刪除嗎?')) return;
+    try {
+      await Cloud.deleteClass(state.classId);
+    } catch (e) {
+      console.error(e);
+      toast('刪除失敗:' + e.message);
+      return;
+    }
+  }
+
+  Storage.clear(state.classId);
   location.reload();
 }

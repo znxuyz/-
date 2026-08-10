@@ -1,0 +1,199 @@
+/* ============================================
+   登入 / 班級選擇 的畫面
+   ────────────────────────────────────────────
+   全部共用 #gateView 這個容器,依狀態換內容。
+============================================ */
+
+function hideAllTopViews() {
+  ['gateView', 'setupView', 'appView', 'studentView'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+}
+
+function showGate(html) {
+  hideAllTopViews();
+  const gate = document.getElementById('gateView');
+  gate.classList.remove('hidden');
+  gate.innerHTML = html;
+}
+
+/* ---------- 1. 登入畫面 ---------- */
+
+function showAuthView() {
+  showGate(`
+    <div class="gate-card">
+      <div class="gate-title">守護獸學園</div>
+      <div class="gate-subtitle">— 班 級 養 成 系 統 —</div>
+      <div class="gate-desc">
+        請使用你的 Google 帳號登入。<br>
+        老師登入後可建立班級,學生登入後會自動進入老師已安排好的班級。
+      </div>
+      <button class="btn btn-primary btn-block btn-large" onclick="Session.signIn()">
+        使用 Google 帳號登入
+      </button>
+      <div class="gate-foot">
+        沒有網路也想用?<a href="#" onclick="useLocalMode(); return false;">切換為單機模式</a>
+      </div>
+    </div>
+  `);
+}
+
+/* 讓老師在沒網路的場合仍能使用(資料只存在這台電腦) */
+function useLocalMode() {
+  updateSyncStatus('local');
+  initLocalMode();
+}
+
+/* ---------- 2. 首次登入:選擇身份 ---------- */
+
+function showRoleChoice() {
+  showGate(`
+    <div class="gate-card">
+      <div class="gate-title">歡迎,${escapeHtml(state.user.displayName || state.user.email)}</div>
+      <div class="gate-desc">
+        系統還不認識你的身份。
+      </div>
+
+      <div class="gate-section">
+        <div class="gate-section-title">我是老師</div>
+        <div class="gate-section-desc">建立你的第一個班級,之後可以再新增(最多不限)。</div>
+        <input type="text" id="gateClassName" class="setup-input" placeholder="班級名稱,例如:四年二班" />
+        <input type="text" id="gateTeacherName" class="setup-input" placeholder="老師稱呼,例如:張老師"
+               value="${escapeHtml(state.user.displayName || '')}" style="margin-top:10px;" />
+        <button class="btn btn-primary btn-block" style="margin-top:12px;"
+                onclick="gateCreateClass()">建立班級</button>
+      </div>
+
+      <div class="gate-section">
+        <div class="gate-section-title">我是學生</div>
+        <div class="gate-section-desc">
+          你的信箱 <strong>${escapeHtml(state.user.email)}</strong> 還沒被加入任何班級。<br>
+          請老師用 Excel 匯入名單(需包含這個信箱),然後重新整理此頁。
+        </div>
+        <button class="btn btn-ghost btn-block" onclick="location.reload()">重新整理</button>
+      </div>
+
+      <div class="gate-foot">
+        <a href="#" onclick="Session.signOut(); return false;">登出</a>
+      </div>
+    </div>
+  `);
+}
+
+async function gateCreateClass() {
+  const className = document.getElementById('gateClassName').value.trim();
+  const teacherName = document.getElementById('gateTeacherName').value.trim();
+  if (!className || !teacherName) {
+    toast('請填寫班級名稱與老師稱呼');
+    return;
+  }
+  try {
+    toast('建立中…');
+    await Session.createClass(className, teacherName);
+  } catch (e) {
+    console.error(e);
+    toast('建立失敗:' + e.message);
+  }
+}
+
+/* ---------- 3. 老師:班級選擇 ---------- */
+
+function showClassPicker() {
+  const cards = state.myClasses.map(c => `
+    <div class="class-card" onclick="Session.openClass('${c.id}')">
+      <div class="class-card-name">${escapeHtml(c.className)}</div>
+      <div class="class-card-meta">${c.studentCount} 位學生</div>
+      <div class="class-card-code">加入代碼 ${escapeHtml(c.joinCode || '—')}</div>
+    </div>
+  `).join('');
+
+  showGate(`
+    <div class="gate-card gate-card-wide">
+      <div class="gate-title">選擇班級</div>
+      <div class="gate-subtitle">${escapeHtml(state.teacherName || state.user.displayName)}</div>
+
+      <div class="class-card-grid">
+        ${cards || '<div class="gate-desc">還沒有班級,先建立一個吧。</div>'}
+      </div>
+
+      <div class="gate-section">
+        <div class="gate-section-title">新增班級</div>
+        <input type="text" id="gateClassName" class="setup-input" placeholder="班級名稱,例如:五年一班" />
+        <input type="hidden" id="gateTeacherName"
+               value="${escapeHtml(state.myClasses[0]?.teacherName || state.user.displayName || '老師')}" />
+        <button class="btn btn-primary btn-block" style="margin-top:12px;"
+                onclick="gateCreateClass()">＋ 建立</button>
+      </div>
+
+      <div class="gate-foot">
+        <a href="#" onclick="Session.signOut(); return false;">登出</a>
+      </div>
+    </div>
+  `);
+}
+
+/* ---------- 4. 學生:所屬班級 ---------- */
+
+function showStudentClassPicker() {
+  // 只有一個班就直接進去,不用多按一次
+  if (state.myClasses.length === 1) {
+    enterStudentView(state.myClasses[0]);
+    return;
+  }
+  const cards = state.myClasses.map(c => `
+    <div class="class-card" onclick='enterStudentView(${JSON.stringify(c)})'>
+      <div class="class-card-name">${escapeHtml(c.className)}</div>
+      <div class="class-card-meta">${escapeHtml(c.name)} · ${escapeHtml(c.seatNumber || '')} 號</div>
+    </div>
+  `).join('');
+
+  showGate(`
+    <div class="gate-card gate-card-wide">
+      <div class="gate-title">選擇班級</div>
+      <div class="class-card-grid">${cards}</div>
+      <div class="gate-foot"><a href="#" onclick="Session.signOut(); return false;">登出</a></div>
+    </div>
+  `);
+}
+
+/* 學生端主畫面在 feature-student-view.js */
+async function enterStudentView(classInfo) {
+  try {
+    await StudentApp.enter(classInfo);
+  } catch (e) {
+    console.error(e);
+    toast('載入失敗:' + e.message);
+  }
+}
+
+/* ---------- 老師端頂部的班級切換器 ---------- */
+
+function renderClassSwitcher() {
+  const el = document.getElementById('classSwitcher');
+  if (!el) return;
+  if (!state.classId || state.myClasses.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  const options = state.myClasses.map(c =>
+    `<option value="${c.id}" ${c.id === state.classId ? 'selected' : ''}>${escapeHtml(c.className)}</option>`
+  ).join('');
+  el.innerHTML = `
+    <select class="class-switcher-select" onchange="Session.switchClass(this.value)">
+      ${options}
+    </select>
+    <button class="btn btn-ghost btn-small" onclick="showClassPicker()">全部班級</button>
+    <span id="syncStatus" class="sync-status synced">已同步</span>
+  `;
+}
+
+/* 基本的 HTML 逸出,避免學生姓名含特殊字元時破版 */
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

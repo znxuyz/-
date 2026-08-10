@@ -1,0 +1,257 @@
+/* ============================================
+   Firebase 設定與初始化
+   ────────────────────────────────────────────
+   使用 compat 版 SDK,因為本專案沒有 build 步驟,
+   compat 版會掛上全域的 firebase.*,可直接用 <script> 引入。
+
+   如果你要換成自己的 Firebase 專案,只需要改下面這一段。
+   這段設定可以公開,安全性是由 firestore.rules 控管。
+============================================ */
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBXyQ4OwD2f_dxDmb6X32i4CQw_Dc_q3k4",
+  authDomain: "classroom-management-sys-26f97.firebaseapp.com",
+  projectId: "classroom-management-sys-26f97",
+  storageBucket: "classroom-management-sys-26f97.firebasestorage.app",
+  messagingSenderId: "584347256149",
+  appId: "1:584347256149:web:1439f46ff4dd7e908cdbdc"
+};
+
+/* 雲端模組 - 所有 Firebase 操作的單一入口 */
+const Cloud = {
+  ready: false,
+  db: null,
+  auth: null,
+
+  /* 初始化。SDK 沒載入成功時回傳 false,系統會退回單機模式 */
+  init() {
+    if (typeof firebase === 'undefined') {
+      console.warn('[Cloud] Firebase SDK 未載入,退回單機模式');
+      return false;
+    }
+    try {
+      firebase.initializeApp(FIREBASE_CONFIG);
+      this.auth = firebase.auth();
+      this.db = firebase.firestore();
+      // 離線快取:網路斷線時仍可讀取先前資料
+      this.db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+        console.warn('[Cloud] 離線快取無法啟用:', err.code);
+      });
+      this.ready = true;
+      return true;
+    } catch (e) {
+      console.error('[Cloud] 初始化失敗:', e);
+      return false;
+    }
+  },
+
+  /* ---------- 身份驗證 ---------- */
+
+  signInWithGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return this.auth.signInWithPopup(provider);
+  },
+
+  signOut() {
+    return this.auth.signOut();
+  },
+
+  onAuthChanged(callback) {
+    return this.auth.onAuthStateChanged(callback);
+  },
+
+  get uid() {
+    return this.auth && this.auth.currentUser ? this.auth.currentUser.uid : null;
+  },
+
+  /* ---------- 使用者檔案 ---------- */
+
+  /* 取得使用者資料;第一次登入會自動建立。role 預設為 student,
+     老師身份由「建立班級」這個動作升級,或由既有班級的 teacherUid 認定 */
+  async getOrCreateUser(user) {
+    const ref = this.db.collection('users').doc(user.uid);
+    const snap = await ref.get();
+    if (snap.exists) {
+      // 每次登入更新顯示名稱,老師改暱稱時才不會卡在舊的
+      await ref.update({
+        displayName: user.displayName || '',
+        photoURL: user.photoURL || '',
+        lastLogin: Date.now()
+      });
+      return { uid: user.uid, ...snap.data() };
+    }
+    const profile = {
+      email: (user.email || '').toLowerCase(),
+      displayName: user.displayName || '',
+      photoURL: user.photoURL || '',
+      role: 'student',
+      createdAt: Date.now(),
+      lastLogin: Date.now()
+    };
+    await ref.set(profile);
+    return { uid: user.uid, ...profile };
+  },
+
+  async promoteToTeacher(uid) {
+    await this.db.collection('users').doc(uid).update({ role: 'teacher' });
+  },
+
+  /* ---------- 班級 ---------- */
+
+  /* 列出這位老師的所有班級(不含 blob,只取清單需要的欄位) */
+  async listTeacherClasses(uid) {
+    const snap = await this.db.collection('classes')
+      .where('teacherUid', '==', uid)
+      .get();
+    return snap.docs
+      .map(d => ({
+        id: d.id,
+        className: d.data().className,
+        teacherName: d.data().teacherName,
+        joinCode: d.data().joinCode,
+        studentCount: (d.data().blob && d.data().blob.students || []).length,
+        updatedAt: d.data().updatedAt || 0
+      }))
+      .sort((a, b) => a.className.localeCompare(b.className, 'zh-Hant'));
+  },
+
+  async createClass(uid, className, teacherName, blob) {
+    const joinCode = this.generateJoinCode();
+    const ref = await this.db.collection('classes').add({
+      teacherUid: uid,
+      className,
+      teacherName,
+      joinCode,
+      blob,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    return { id: ref.id, joinCode };
+  },
+
+  async loadClass(classId) {
+    const snap = await this.db.collection('classes').doc(classId).get();
+    if (!snap.exists) return null;
+    return { id: snap.id, ...snap.data() };
+  },
+
+  /* 只有老師寫這份文件,所以直接覆寫即可,不需要 transaction。
+     學生的作答寫在 submissions 子集合,不會和這裡衝突。 */
+  async saveClassBlob(classId, blob, meta) {
+    const payload = { blob, updatedAt: Date.now() };
+    if (meta && meta.className) payload.className = meta.className;
+    if (meta && meta.teacherName) payload.teacherName = meta.teacherName;
+    await this.db.collection('classes').doc(classId).update(payload);
+  },
+
+  async deleteClass(classId) {
+    await this.db.collection('classes').doc(classId).delete();
+  },
+
+  /* 六碼班級代碼,排除容易看錯的 0/O/1/I */
+  generateJoinCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+  },
+
+  /* ---------- 學生名冊索引 ----------
+     學生用 Google 登入後,靠 email 找到自己屬於哪些班級。
+     老師匯入名單時會同步寫入這份索引。 */
+
+  emailKey(email) {
+    return (email || '').trim().toLowerCase();
+  },
+
+  /* 老師端:把整班的 email 索引寫進去(批次寫入,一次最多 500 筆) */
+  async syncRosterIndex(classId, className, students) {
+    const withEmail = students.filter(s => s.email);
+    const batch = this.db.batch();
+    withEmail.forEach(s => {
+      const ref = this.db.collection('rosterIndex').doc(this.emailKey(s.email));
+      // merge:true 對 map 欄位是深層合併,學生同時在多個班也不會互相蓋掉
+      batch.set(ref, {
+        classes: {
+          [classId]: {
+            classId,
+            className,
+            studentId: s.id,
+            name: s.name,
+            seatNumber: s.seatNumber || ''
+          }
+        }
+      }, { merge: true });
+    });
+    if (withEmail.length === 0) return 0;
+    await batch.commit();
+    return withEmail.length;
+  },
+
+  /* 學生端:用自己的 email 查出所屬班級 */
+  async findMyClasses(email) {
+    const snap = await this.db.collection('rosterIndex').doc(this.emailKey(email)).get();
+    if (!snap.exists) return [];
+    const data = snap.data().classes || {};
+    return Object.values(data);
+  },
+
+  /* ---------- 測驗 ----------
+     題目放在 classes/{classId}/quizzes/{quizId},學生只能讀不能寫。
+     注意:發布給學生的版本會抽掉正確答案,避免學生從開發者工具偷看。
+     批改在老師端做,學生只送出自己的答案。 */
+
+  async publishQuiz(classId, quiz) {
+    const forStudents = {
+      id: quiz.id,
+      title: quiz.title,
+      dueDate: quiz.dueDate || '',
+      pointsPerQuestion: quiz.pointsPerQuestion,
+      status: 'open',
+      publishedAt: Date.now(),
+      questions: quiz.questions.map(q => ({
+        id: q.id,
+        type: q.type,
+        text: q.text,
+        options: q.type === 'choice' ? q.options : []
+        // answer 刻意不寫進來
+      }))
+    };
+    await this.db.collection('classes').doc(classId)
+      .collection('quizzes').doc(quiz.id).set(forStudents);
+  },
+
+  async setQuizStatus(classId, quizId, status) {
+    await this.db.collection('classes').doc(classId)
+      .collection('quizzes').doc(quizId).update({ status });
+  },
+
+  async listOpenQuizzes(classId) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('quizzes').where('status', '==', 'open').get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  /* 學生交卷。文件 id 固定為 quizId__uid,
+     所以同一位學生重交也只會蓋掉自己那一份,不影響別人。 */
+  async submitAnswers(classId, quizId, uid, payload) {
+    await this.db.collection('classes').doc(classId)
+      .collection('submissions').doc(`${quizId}__${uid}`)
+      .set({ ...payload, quizId, uid, submittedAt: Date.now() });
+  },
+
+  async getMySubmission(classId, quizId, uid) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('submissions').doc(`${quizId}__${uid}`).get();
+    return snap.exists ? snap.data() : null;
+  },
+
+  async listSubmissions(classId, quizId) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('submissions').where('quizId', '==', quizId).get();
+    return snap.docs.map(d => d.data());
+  }
+};
