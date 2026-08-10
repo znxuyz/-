@@ -86,6 +86,90 @@ function serializeState() {
 }
 
 /* ============================================
+   Firestore 相容性檢查
+   ────────────────────────────────────────────
+   Firestore 對資料形狀有幾條硬性限制,違反時整份寫入會被拒絕,
+   而 SDK 只回一句籠統的錯誤,不會告訴你是哪個欄位。
+   儲存失敗時跑這個檢查,把確切路徑印到 Console。
+============================================ */
+
+const FIRESTORE_LIMITS = {
+  MAX_DEPTH: 20,          // 巢狀深度上限
+  MAX_DOC_BYTES: 1048576  // 單一文件 1 MiB
+};
+
+function validateForFirestore(value, path, depth, problems) {
+  path = path || '(root)';
+  depth = depth || 0;
+  problems = problems || [];
+
+  if (depth > FIRESTORE_LIMITS.MAX_DEPTH) {
+    problems.push({ path, issue: `巢狀超過 ${FIRESTORE_LIMITS.MAX_DEPTH} 層` });
+    return problems;
+  }
+
+  if (value === undefined) {
+    problems.push({ path, issue: 'undefined(Firestore 不接受,請改用 null)' });
+    return problems;
+  }
+  if (typeof value === 'number' && !isFinite(value)) {
+    problems.push({ path, issue: `${value}(NaN / Infinity 不被接受)` });
+    return problems;
+  }
+  if (typeof value === 'function') {
+    problems.push({ path, issue: '函式無法儲存' });
+    return problems;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => {
+      if (Array.isArray(item)) {
+        problems.push({ path: `${path}[${i}]`, issue: '陣列裡不能直接放陣列' });
+        return;
+      }
+      validateForFirestore(item, `${path}[${i}]`, depth + 1, problems);
+    });
+    return problems;
+  }
+
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    Object.keys(value).forEach(key => {
+      // 欄位名稱不能為空,也不能含這些字元
+      if (key === '') {
+        problems.push({ path, issue: '有空字串的欄位名稱' });
+      } else if (/[~*/[\]]/.test(key)) {
+        problems.push({ path: `${path}.${key}`, issue: '欄位名稱含 ~ * / [ ] 其中之一' });
+      }
+      validateForFirestore(value[key], `${path}.${key}`, depth + 1, problems);
+    });
+  }
+
+  return problems;
+}
+
+/* 儲存失敗時呼叫,把問題印成人看得懂的樣子 */
+function diagnoseSaveFailure(data) {
+  const problems = validateForFirestore(data);
+  const bytes = new Blob([JSON.stringify(data)]).size;
+
+  console.group('[Cloud] 儲存失敗診斷');
+  console.log(`資料大小約 ${(bytes / 1024).toFixed(0)} KB(上限 1024 KB)`);
+  if (bytes > FIRESTORE_LIMITS.MAX_DOC_BYTES) {
+    console.error('超過單一文件大小上限');
+  }
+  if (problems.length === 0) {
+    console.log('資料形狀沒有問題,失敗原因可能是權限規則或網路');
+  } else {
+    console.error(`找到 ${problems.length} 處不合法的資料:`);
+    problems.slice(0, 30).forEach(p => console.error(`  ${p.path} — ${p.issue}`));
+    if (problems.length > 30) console.error(`  …另有 ${problems.length - 30} 處`);
+  }
+  console.groupEnd();
+
+  return { problems, bytes };
+}
+
+/* ============================================
    save() — 全系統唯一的儲存進入點
 
    雲端模式下寫入會 debounce 800ms。老師連續點五次發分時,
@@ -125,6 +209,20 @@ async function flushCloudSave(isRetry) {
   } catch (e) {
     console.error('[Cloud] 儲存失敗:', e.code || '', e.message, e);
     updateSyncStatus('error');
+
+    const { problems, bytes } = diagnoseSaveFailure(data);
+
+    // 資料形狀有問題的話重試幾次都一樣,直接講清楚
+    if (problems.length > 0) {
+      _cloudSavePending = false;
+      toast(`資料格式有誤(${problems[0].path}),詳情請看 Console。資料已存在本機`);
+      return;
+    }
+    if (bytes > FIRESTORE_LIMITS.MAX_DOC_BYTES) {
+      _cloudSavePending = false;
+      toast(`班級資料已達 ${(bytes / 1024).toFixed(0)}KB,超過雲端單筆上限`);
+      return;
+    }
 
     if (!isRetry) {
       // 網路瞬斷之類的暫時性錯誤,再試一次通常就過了
