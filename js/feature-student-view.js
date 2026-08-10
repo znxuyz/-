@@ -190,10 +190,10 @@ const StudentApp = {
     const sets = blob.groupSets || [];
     if (sets.length > 0) {
       const latest = sets[sets.length - 1];
-      this.groups = latest.groups || [];
+      this.groups = decodeGroups(latest.groups);
       this.groupsName = latest.name;
     } else {
-      this.groups = blob.currentGroups || [];
+      this.groups = decodeGroups(blob.currentGroups);
       this.groupsName = null;
     }
   },

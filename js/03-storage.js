@@ -46,6 +46,23 @@ const Storage = {
    (排除 timer intervalId 這類執行期物件)
 ============================================ */
 
+/* ============================================
+   分組資料的格式轉換
+   ────────────────────────────────────────────
+   分組在記憶體裡是「陣列的陣列」:[[學生id, 學生id], [學生id]]。
+   但 Firestore 不允許陣列裡再放陣列,整份儲存會被拒絕。
+   所以寫出去時包成 [{members:[...]}, ...],讀回來再拆開。
+   記憶體中的形狀維持不變,分組相關的程式都不用改。
+============================================ */
+
+function encodeGroups(groups) {
+  return (groups || []).map(g => ({ members: Array.isArray(g) ? g : (g.members || []) }));
+}
+
+function decodeGroups(list) {
+  return (list || []).map(g => Array.isArray(g) ? g : (g.members || []));
+}
+
 function serializeState() {
   return {
     className: state.className,
@@ -54,9 +71,12 @@ function serializeState() {
     rules: state.rules,
     attendance: state.attendance,
     seatingLayouts: state.seatingLayouts,
-    groupSets: state.groupSets,
+    groupSets: (state.groupSets || []).map(gs => ({
+      ...gs,
+      groups: encodeGroups(gs.groups)
+    })),
     // 未命名儲存的分組也要存,老師按過「產生分組」學生就看得到小組榜
-    currentGroups: state.currentGroups,
+    currentGroups: encodeGroups(state.currentGroups),
     contactBook: state.contactBook,
     homework: state.homework,
     classTasks: state.classTasks,
@@ -91,7 +111,7 @@ function save() {
   _cloudSaveTimer = setTimeout(flushCloudSave, 800);
 }
 
-async function flushCloudSave() {
+async function flushCloudSave(isRetry) {
   if (!isCloudMode() || !_cloudSavePending) return;
   const classId = state.classId;
   const data = serializeState();
@@ -103,9 +123,19 @@ async function flushCloudSave() {
     _cloudSavePending = false;
     updateSyncStatus('saved');
   } catch (e) {
-    console.error('[Cloud] 儲存失敗:', e);
+    console.error('[Cloud] 儲存失敗:', e.code || '', e.message, e);
     updateSyncStatus('error');
-    toast('雲端儲存失敗,資料已暫存在本機');
+
+    if (!isRetry) {
+      // 網路瞬斷之類的暫時性錯誤,再試一次通常就過了
+      setTimeout(() => flushCloudSave(true), 3000);
+      return;
+    }
+
+    // 兩次都失敗。資料還在 localStorage,但這個旗標不能一直留著 ——
+    // 它會擋住班級的即時監聽,讓整個 App 之後都收不到任何更新。
+    _cloudSavePending = false;
+    toast('雲端儲存失敗(' + (e.code || e.message) + '),資料已暫存在本機');
   }
 }
 

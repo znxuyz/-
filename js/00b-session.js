@@ -186,8 +186,11 @@ function applyBlobToState(blob) {
   state.rules         = blob.rules && blob.rules.length ? blob.rules : [...DEFAULT_RULES];
   state.attendance    = blob.attendance || {};
   state.seatingLayouts = blob.seatingLayouts || [];
-  state.groupSets     = blob.groupSets || [];
-  state.currentGroups = blob.currentGroups || [];
+  state.groupSets     = (blob.groupSets || []).map(gs => ({
+    ...gs,
+    groups: decodeGroups(gs.groups)
+  }));
+  state.currentGroups = decodeGroups(blob.currentGroups);
   state.contactBook   = blob.contactBook || {};
   state.homework      = blob.homework || [];
   state.classTasks    = blob.classTasks || [];
