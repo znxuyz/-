@@ -122,6 +122,9 @@ const Session = {
     state.teacherName = doc.teacherName || state.teacherName;
     updateSyncStatus('saved');
     showApp();
+
+    // 收進學生自己挑好的守護獸(不擋畫面,收完再重繪)
+    applyPendingPetChoices();
   },
 
   /* 切班前先把未送出的寫入補完,避免資料留在上一班 */
@@ -149,6 +152,42 @@ function applyBlobToState(blob) {
   state.quizzes       = blob.quizzes || [];
   state.selectedStudentId = null;
   state.students.forEach(migrateStudent);
+}
+
+/* ============================================
+   套用學生自選的守護獸
+   ────────────────────────────────────────────
+   老師端每次開班時自動執行。只填補「還沒有守護獸」的學生,
+   老師已經指定過的不會被學生的選擇蓋掉。
+============================================ */
+async function applyPendingPetChoices() {
+  if (!isCloudMode()) return;
+
+  let choices;
+  try {
+    choices = await Cloud.listPetChoices(state.classId);
+  } catch (e) {
+    console.warn('[Cloud] 讀取守護獸選擇失敗:', e);
+    return;
+  }
+  if (choices.length === 0) return;
+
+  let applied = 0;
+  choices.forEach(c => {
+    const student = state.students.find(s => s.id === c.studentId);
+    if (!student || student.pet) return;      // 已有守護獸就不動
+    if (!PET_SPECIES.some(p => p.id === c.pet)) return;   // 防止偽造的物種 id
+
+    student.pet = c.pet;
+    if (c.petName) student.petName = c.petName;
+    applied++;
+  });
+
+  if (applied > 0) {
+    save();
+    renderAll();
+    toast(`✦ ${applied} 位學生已選好守護獸`);
+  }
 }
 
 /* ============================================

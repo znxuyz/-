@@ -249,6 +249,29 @@ const Cloud = {
     return snap.exists ? snap.data() : null;
   },
 
+  /* ---------- 學生自選守護獸 ----------
+     學生沒有權限改班級資料,所以改寫成「選擇單」:
+     學生寫自己那一份,老師端開班時自動收進班級資料。
+     和交卷用同一套模式,同樣不會有寫入衝突。 */
+
+  async savePetChoice(classId, uid, choice) {
+    await this.db.collection('classes').doc(classId)
+      .collection('petChoices').doc(uid)
+      .set({ ...choice, uid, at: Date.now() });
+  },
+
+  async getMyPetChoice(classId, uid) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('petChoices').doc(uid).get();
+    return snap.exists ? snap.data() : null;
+  },
+
+  async listPetChoices(classId) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('petChoices').get();
+    return snap.docs.map(d => d.data());
+  },
+
   async listSubmissions(classId, quizId) {
     const snap = await this.db.collection('classes').doc(classId)
       .collection('submissions').where('quizId', '==', quizId).get();

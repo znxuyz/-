@@ -13,6 +13,9 @@ const StudentApp = {
   submissions: {},      // { quizId: submissionDoc }
   activeQuiz: null,
   draftAnswers: {},
+  petChoice: null,        // 已送出但老師還沒收進班級資料的選擇
+  pickedPet: null,        // 挑選畫面上目前點選的物種
+  draftNickname: '',
 
   async enter(classInfo) {
     this.classInfo = classInfo;
@@ -36,6 +39,11 @@ const StudentApp = {
     this.student = (blob.students || []).find(s => s.id === studentId) || null;
     this.classRules = blob.rules || [];
 
+    // 老師還沒把選擇收進班級資料前,先用學生自己的選擇單顯示
+    this.petChoice = this.student && this.student.pet
+      ? null
+      : await Cloud.getMyPetChoice(classId, Cloud.uid);
+
     this.quizzes = await Cloud.listOpenQuizzes(classId);
 
     // 逐份查自己交過沒 — 開放中的測驗通常不多,這裡的查詢量很小
@@ -57,10 +65,11 @@ const StudentApp = {
     }
 
     const s = this.student;
-    const petHtml = s && s.pet ? this.renderPet(s) : `
-      <div class="student-pet-empty">
-        老師還沒幫你選守護獸,或你還沒開始集分。
-      </div>`;
+    const petHtml = s && s.pet
+      ? this.renderPet(s)
+      : this.petChoice
+        ? this.renderPendingPet()
+        : this.renderPetPicker();
 
     const quizHtml = this.quizzes.length === 0
       ? '<div class="student-empty">目前沒有待作答的測驗</div>'
@@ -134,6 +143,87 @@ const StudentApp = {
           ${nextThreshold
             ? `再 ${nextThreshold - s.totalPoints} 分進化到下一階段`
             : '已達最高階段'}
+        </div>
+      </div>`;
+  },
+
+  /* ---------- 自選守護獸 ---------- */
+
+  renderPetPicker() {
+    const cards = PET_SPECIES.map(p => `
+      <div class="pet-choice ${this.pickedPet === p.id ? 'selected' : ''}"
+           onclick="StudentApp.pickPet('${p.id}')">
+        <div class="pet-choice-icon">${p.icon}</div>
+        <div class="pet-choice-name">${escapeHtml(p.name)}</div>
+        <div class="pet-choice-desc">${escapeHtml(p.desc)}</div>
+      </div>`).join('');
+
+    return `
+      <div class="pet-picker">
+        <div class="pet-picker-title">選擇你的守護獸</div>
+        <div class="pet-picker-sub">— 台 灣 山 林 八 神 —</div>
+        <div class="pet-picker-desc">
+          牠們都是台灣特有種,真實住在這座島上。<br>
+          選好之後就不能更換了,慢慢挑。
+        </div>
+        <div class="pet-choice-grid">${cards}</div>
+        <input type="text" id="petNickname" class="student-short-input"
+               placeholder="幫牠取個名字(可留空)" style="margin-top:16px;" />
+        <button class="btn btn-primary btn-block btn-large" style="margin-top:14px;"
+                ${this.pickedPet ? '' : 'disabled'}
+                onclick="StudentApp.confirmPet()">
+          ${this.pickedPet ? '就選牠了' : '請先選一隻'}
+        </button>
+      </div>`;
+  },
+
+  pickPet(petId) {
+    this.pickedPet = petId;
+    // 保留使用者已經打好的名字,重繪不要清掉
+    const input = document.getElementById('petNickname');
+    this.draftNickname = input ? input.value : (this.draftNickname || '');
+    this.render();
+    const restored = document.getElementById('petNickname');
+    if (restored) restored.value = this.draftNickname || '';
+  },
+
+  async confirmPet() {
+    if (!this.pickedPet) return;
+    const species = PET_SPECIES.find(p => p.id === this.pickedPet);
+    const input = document.getElementById('petNickname');
+    const nickname = (input ? input.value : '').trim();
+
+    if (!confirm(`確定選擇「${species.name}」嗎?選好之後就不能更換了。`)) return;
+
+    try {
+      await Cloud.savePetChoice(this.classInfo.classId, Cloud.uid, {
+        studentId: this.classInfo.studentId,
+        studentName: this.classInfo.name,
+        pet: this.pickedPet,
+        petName: nickname || null
+      });
+      toast('✦ 守護獸已選定!');
+      this.pickedPet = null;
+      this.draftNickname = '';
+      await this.refresh();
+    } catch (e) {
+      console.error(e);
+      toast('選擇失敗:' + e.message);
+    }
+  },
+
+  /* 已送出選擇,但老師還沒開過班級後台,尚未收進正式資料 */
+  renderPendingPet() {
+    const species = PET_SPECIES.find(p => p.id === this.petChoice.pet);
+    if (!species) return '<div class="student-pet-empty">守護獸資料有誤,請告訴老師</div>';
+    return `
+      <div class="student-pet-card">
+        <div class="student-pet-icon">🥚</div>
+        <div class="student-pet-name">${escapeHtml(this.petChoice.petName || species.name)}</div>
+        <div class="student-pet-stage">${escapeHtml(species.name)} · 靈卵</div>
+        <div class="student-progress-label" style="margin-top:16px;">
+          你選好了 ${species.icon} ${escapeHtml(species.name)}。<br>
+          老師下次打開班級後台時,牠就會正式住進來。
         </div>
       </div>`;
   },

@@ -56,6 +56,21 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
       }
 
+      /* 學生自選守護獸:
+         文件 id 就是學生的 uid,所以只能寫自己那一份。
+         老師端會讀取並收進班級資料(且只填補還沒有守護獸的學生)。 */
+      match /petChoices/{uid} {
+        function isClassTeacher() {
+          return signedIn()
+            && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+        }
+        allow create, update: if signedIn()
+                              && request.auth.uid == uid
+                              && request.resource.data.uid == uid;
+        allow read: if isClassTeacher() || (signedIn() && request.auth.uid == uid);
+        allow delete: if isClassTeacher();
+      }
+
       /* 學生作答:
          · 學生只能建立/修改 id 為 {quizId}__{自己的uid} 的那一份
          · 而且文件裡的 uid 欄位必須等於自己,不能偽造成別人
