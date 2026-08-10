@@ -367,6 +367,43 @@ const Cloud = {
     return { ...data, orderAt: server || data.submittedAt || 0 };
   },
 
+  /* ---------- 獎品兌換 ----------
+     學生只能建立自己的兌換申請,不能自己扣點數 ——
+     扣點與庫存都由老師端執行,學生改前端也動不了分數。 */
+
+  async createPurchase(classId, uid, payload) {
+    const ref = await this.db.collection('classes').doc(classId)
+      .collection('purchases').add({
+        ...payload,
+        uid,
+        status: 'pending',
+        at: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: Date.now()
+      });
+    return ref.id;
+  },
+
+  async updatePurchase(classId, purchaseId, patch) {
+    await this.db.collection('classes').doc(classId)
+      .collection('purchases').doc(purchaseId).update(patch);
+  },
+
+  watchPurchases(classId, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('purchases')
+      .onSnapshot(snap => {
+        cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, err => console.warn('[Cloud] 兌換監聽中斷:', err.message));
+  },
+
+  watchMyPurchases(classId, uid, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('purchases').where('uid', '==', uid)
+      .onSnapshot(snap => {
+        cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, err => console.warn('[Cloud] 兌換監聽中斷:', err.message));
+  },
+
   /* ---------- 即時監聽 ----------
      回傳 unsubscribe 函式,切換班級或登出時要記得呼叫。 */
 

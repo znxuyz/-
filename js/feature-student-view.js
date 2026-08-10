@@ -21,7 +21,10 @@ const StudentApp = {
   allStudents: [],        // 全班資料,排行榜用
   groups: [],             // 目前使用的分組(id 陣列的陣列)
   groupsName: null,       // 分組名稱,老師存過才有
+  shopItems: [],          // 老師上架的獎品
+  myPurchases: [],        // 自己的兌換申請
   unsub: null,            // 班級即時監聽
+  unsubPurchases: null,
   lastScore: undefined,   // 用來偵測加分,跳出提示
 
   async enter(classInfo) {
@@ -33,6 +36,17 @@ const StudentApp = {
 
     await this.refresh();
     this.watch();
+    this.watchPurchases();
+  },
+
+  /* 老師結算兌換後,狀態會即時反映在學生畫面上 */
+  watchPurchases() {
+    if (this.unsubPurchases) this.unsubPurchases();
+    this.unsubPurchases = Cloud.watchMyPurchases(
+      this.classInfo.classId, Cloud.uid, list => {
+        this.myPurchases = list;
+        if (!this.activeQuiz && this.tab === 'shop') this.render();
+      });
   },
 
   /* 老師一發分、一結算成績,學生畫面就跟著動。
@@ -44,6 +58,7 @@ const StudentApp = {
       this.allStudents = blob.students || [];
       this.student = this.allStudents.find(s => s.id === this.classInfo.studentId) || null;
 
+      this.shopItems = blob.shopItems || [];
       this.readGroups(blob);
 
       // 正在作答時不要重繪,會把已經選好的答案清掉
@@ -72,6 +87,7 @@ const StudentApp = {
     this.allStudents = blob.students || [];
     this.student = this.allStudents.find(s => s.id === studentId) || null;
     this.classRules = blob.rules || [];
+    this.shopItems = blob.shopItems || [];
 
     this.readGroups(blob);
 
@@ -124,12 +140,15 @@ const StudentApp = {
                 onclick="StudentApp.setTab('quiz')">
           測驗${pending > 0 ? `<span class="student-tab-badge">${pending}</span>` : ''}
         </button>
+        <button class="student-tab ${this.tab === 'shop' ? 'active' : ''}"
+                onclick="StudentApp.setTab('shop')">兌換</button>
       </nav>
 
       <main class="student-main">
         ${this.tab === 'pet'  ? this.renderPetTab()  : ''}
         ${this.tab === 'rank' ? this.renderRankTab() : ''}
         ${this.tab === 'quiz' ? this.renderQuizTab() : ''}
+        ${this.tab === 'shop' ? this.renderShopTab() : ''}
       </main>
     `;
   },
@@ -180,6 +199,111 @@ const StudentApp = {
                onclick="StudentApp.openQuiz('${q.id}')">開始作答</button>`}
       </div>`;
     }).join('');
+  },
+
+  /* ---------- 分頁:兌換商店 ----------
+     學生按下兌換只是送出一張申請單,實際扣點在老師端執行。
+     所以這裡顯示的餘額純粹是給孩子參考,不是判斷的依據。 */
+
+  renderShopTab() {
+    const items = (this.shopItems || []).filter(i => i.active);
+    const points = this.student ? this.student.currentPoints : 0;
+
+    const pendingIds = (this.myPurchases || [])
+      .filter(p => p.status === 'pending')
+      .map(p => p.itemId);
+
+    const cards = items.length === 0
+      ? '<div class="student-empty">老師還沒上架任何獎品</div>'
+      : items.map(item => {
+          const soldOut  = item.stock !== null && item.stock <= 0;
+          const tooPoor  = points < item.price;
+          const waiting  = pendingIds.includes(item.id);
+          const disabled = soldOut || tooPoor || waiting;
+
+          return `
+          <div class="prize-card ${disabled ? 'disabled' : ''}">
+            <div class="prize-icon">${escapeHtml(item.icon || '🎁')}</div>
+            <div class="prize-body">
+              <div class="prize-name">${escapeHtml(item.name)}</div>
+              ${item.description
+                ? `<div class="prize-desc">${escapeHtml(item.description)}</div>` : ''}
+              <div class="prize-meta">
+                <span class="prize-price">${item.price} 點</span>
+                ${item.stock !== null
+                  ? `<span class="prize-stock">${soldOut ? '已兌完' : '剩 ' + item.stock + ' 份'}</span>`
+                  : ''}
+              </div>
+            </div>
+            <button class="btn btn-accent btn-small" ${disabled ? 'disabled' : ''}
+                    onclick="StudentApp.buy('${item.id}')">
+              ${waiting ? '處理中' : soldOut ? '已兌完' : tooPoor ? `還差 ${item.price - points} 點` : '兌換'}
+            </button>
+          </div>`;
+        }).join('');
+
+    return `
+      <div class="prize-balance">
+        <span>我的可用積分</span>
+        <strong>${points}</strong>
+      </div>
+      ${cards}
+      ${this.renderMyPurchases()}`;
+  },
+
+  renderMyPurchases() {
+    const list = (this.myPurchases || [])
+      .filter(p => p.status !== 'pending')
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 10);
+    if (list.length === 0) return '';
+
+    const label = {
+      paid: '已扣點,等老師發放',
+      delivered: '已領取',
+      rejected: '未成立',
+      refunded: '已退點'
+    };
+
+    return `
+      <section class="student-section">
+        <div class="student-section-title">我的兌換紀錄</div>
+        <div class="student-history">
+          ${list.map(p => `
+            <div class="student-history-row">
+              <span class="student-history-reason">
+                ${escapeHtml(p.itemIcon || '🎁')} ${escapeHtml(p.itemName)}
+                <span class="prize-status ${p.status}">${label[p.status] || p.status}</span>
+                ${p.status === 'rejected' && p.reason
+                  ? `<span class="prize-reason">${escapeHtml(p.reason)}</span>` : ''}
+              </span>
+              <span class="student-history-points neg">
+                ${p.settledPrice != null ? '-' + p.settledPrice : ''}
+              </span>
+            </div>`).join('')}
+        </div>
+      </section>`;
+  },
+
+  async buy(itemId) {
+    const item = (this.shopItems || []).find(i => i.id === itemId);
+    if (!item) return;
+    if (!confirm(`用 ${item.price} 點兌換「${item.name}」嗎?`)) return;
+
+    try {
+      await Cloud.createPurchase(this.classInfo.classId, Cloud.uid, {
+        studentId: this.classInfo.studentId,
+        studentName: this.classInfo.name,
+        itemId: item.id,
+        itemName: item.name,
+        itemIcon: item.icon || '🎁',
+        requestedPrice: item.price
+      });
+      toast('✦ 已送出兌換,老師確認後就會扣點');
+    } catch (e) {
+      console.error(e);
+      toast('兌換失敗:' + e.message);
+    }
   },
 
   /* ---------- 分頁:排行榜 ---------- */

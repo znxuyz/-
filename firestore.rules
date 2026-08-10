@@ -71,6 +71,23 @@ service cloud.firestore {
         allow delete: if isClassTeacher();
       }
 
+      /* 獎品兌換申請:
+         學生只能建立自己的申請,而且不能自己決定結果 ——
+         status 必須是 pending,實際扣點與核可都在老師端執行。
+         建立之後學生就不能再改,避免把 rejected 改回 paid。 */
+      match /purchases/{purchaseId} {
+        function isClassTeacher() {
+          return signedIn()
+            && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+        }
+        allow create: if signedIn()
+                      && request.resource.data.uid == request.auth.uid
+                      && request.resource.data.status == 'pending';
+        allow read: if isClassTeacher()
+                    || (signedIn() && resource.data.uid == request.auth.uid);
+        allow update, delete: if isClassTeacher();
+      }
+
       /* 學生作答:
          · 學生只能建立/修改 id 為 {quizId}__{自己的uid} 的那一份
          · 而且文件裡的 uid 欄位必須等於自己,不能偽造成別人

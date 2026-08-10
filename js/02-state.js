@@ -42,6 +42,8 @@ let state = {
   classTasks: [],           // [{ id, name, description, target, reward, completed, completedAt, claimedAmount }]
   // 商店相關紀錄(個人庫存放在 student.inventory)
   shopHistory: [],          // [{ studentId, itemId, time, price }]
+  // 老師上架的兌換獎品
+  shopItems: [],            // [{ id, name, icon, price, stock, description, active }]
   // 作業測驗題庫
   quizzes: []               // [{ id, title, questions, status, dueDate, pointsPerQuestion }]
 };

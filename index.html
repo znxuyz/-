@@ -9,22 +9,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 
 <!-- 樣式表 -->
-<link rel="stylesheet" href="css/base.css?v=20260810a">
-<link rel="stylesheet" href="css/components.css?v=20260810a">
-<link rel="stylesheet" href="css/dashboard.css?v=20260810a">
-<link rel="stylesheet" href="css/tools.css?v=20260810a">
-<link rel="stylesheet" href="css/management.css?v=20260810a">
-<link rel="stylesheet" href="css/contact.css?v=20260810a">
-<link rel="stylesheet" href="css/shop.css?v=20260810a">
-<link rel="stylesheet" href="css/ai.css?v=20260810a">
-<link rel="stylesheet" href="css/report.css?v=20260810a">
-<link rel="stylesheet" href="css/projector.css?v=20260810a">
-<link rel="stylesheet" href="css/settings.css?v=20260810a">
-<link rel="stylesheet" href="css/auth.css?v=20260810a">
-<link rel="stylesheet" href="css/quiz.css?v=20260810a">
-<link rel="stylesheet" href="css/student.css?v=20260810a">
-<link rel="stylesheet" href="css/pet-picker.css?v=20260810a">
-<link rel="stylesheet" href="css/leaderboard.css?v=20260810a">
+<link rel="stylesheet" href="css/base.css?v=20260810b">
+<link rel="stylesheet" href="css/components.css?v=20260810b">
+<link rel="stylesheet" href="css/dashboard.css?v=20260810b">
+<link rel="stylesheet" href="css/tools.css?v=20260810b">
+<link rel="stylesheet" href="css/management.css?v=20260810b">
+<link rel="stylesheet" href="css/contact.css?v=20260810b">
+<link rel="stylesheet" href="css/shop.css?v=20260810b">
+<link rel="stylesheet" href="css/ai.css?v=20260810b">
+<link rel="stylesheet" href="css/report.css?v=20260810b">
+<link rel="stylesheet" href="css/projector.css?v=20260810b">
+<link rel="stylesheet" href="css/settings.css?v=20260810b">
+<link rel="stylesheet" href="css/auth.css?v=20260810b">
+<link rel="stylesheet" href="css/quiz.css?v=20260810b">
+<link rel="stylesheet" href="css/student.css?v=20260810b">
+<link rel="stylesheet" href="css/pet-picker.css?v=20260810b">
+<link rel="stylesheet" href="css/leaderboard.css?v=20260810b">
 
 <!-- SheetJS for Excel import -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -464,33 +464,45 @@
       </div>
       
       <div class="sub-tabs">
-        <button class="sub-tab active" data-subtab="shop" onclick="switchSubTab('shop', 'shop')">守護獸商店</button>
+        <button class="sub-tab active" data-subtab="shopItems" onclick="switchSubTab('shop', 'shopItems')">獎品管理</button>
+        <button class="sub-tab" data-subtab="purchases" onclick="switchSubTab('shop', 'purchases')">
+          兌換紀錄<span id="purchaseBadge" class="sub-tab-badge" style="display:none;"></span>
+        </button>
         <button class="sub-tab" data-subtab="tasks" onclick="switchSubTab('shop', 'tasks')">班級共同任務</button>
       </div>
-      
-      <!-- 商店 -->
-      <div id="shopSubView" class="sub-view active">
-        <div class="shop-header-card" id="shopHeader">
-          <div class="empty-state" style="color: var(--moss); padding: 0;">請從下方學生切換器選擇一位學生開始購物</div>
+
+      <!-- 獎品管理 -->
+      <div id="shopItemsSubView" class="sub-view active">
+        <div class="shop-create-form">
+          <input type="text" id="shopItemIcon" class="rule-editor-input" placeholder="🎁" maxlength="4"
+                 title="用一個 emoji 當圖示" style="width:70px; text-align:center;" />
+          <input type="text" id="shopItemName" class="rule-editor-input" placeholder="獎品名稱(例:免寫一項作業)" style="flex:2;" />
+          <input type="text" id="shopItemDesc" class="rule-editor-input" placeholder="說明(選填)" style="flex:2;" />
+          <input type="number" id="shopItemPrice" class="rule-editor-input" placeholder="點數" min="0" style="width:100px;" />
+          <input type="number" id="shopItemStock" class="rule-editor-input" placeholder="庫存(留空=不限)" min="0" style="width:140px;" />
+          <button class="btn btn-primary btn-small" onclick="addShopItem()">＋ 上架</button>
         </div>
-        
-        <div class="contact-toolbar" style="margin-bottom: 16px;">
-          <label style="font-size: 13px; font-weight: 600;">為哪位學生購物:</label>
-          <select id="shopStudentPicker" class="rule-editor-input" style="flex:1; max-width: 300px;" onchange="onShopStudentChange()">
-            <option value="">— 選擇學生 —</option>
-          </select>
+
+        <div class="quiz-mode-hint">
+          ✦ 學生用<strong>可用積分</strong>兌換。學生每得一分,累積經驗與可用積分會同時增加,
+          所以兌換獎品<strong>不會讓守護獸退化</strong>。<br>
+          ✦ 扣點在老師端執行,學生只能送出申請,無法自行更改點數。<br>
+          ✦ 庫存留空代表數量不限,適合「免寫作業」這類不會用完的獎勵。
         </div>
-        
-        <div class="shop-categories" id="shopCategories">
-          <div class="shop-cat-tab active" data-cat="food" onclick="setShopCategory('food')">食物 · 補給</div>
-          <div class="shop-cat-tab" data-cat="accessory" onclick="setShopCategory('accessory')">配件 · 裝飾</div>
-          <div class="shop-cat-tab" data-cat="special" onclick="setShopCategory('special')">特殊 · 道具</div>
-        </div>
-        
-        <div class="shop-grid" id="shopGrid"></div>
+
+        <div id="shopItemList"></div>
       </div>
-      
-      <!-- 班級任務 -->
+
+      <!-- 兌換紀錄 -->
+      <div id="purchasesSubView" class="sub-view">
+        <div class="quiz-mode-hint">
+          ✦ 學生兌換後系統會自動扣點,這裡列出<strong>你還需要實際發放</strong>的獎品。
+          發出去之後按「標記已發放」;若無法發放,按「退點」把積分還給學生。
+        </div>
+        <div id="purchaseList"></div>
+      </div>
+
+      <!-- 班級共同任務 -->
       <div id="tasksSubView" class="sub-view">
         <div class="task-create-form">
           <input type="text" id="taskName" class="rule-editor-input" placeholder="任務名稱(例:全班閱讀王)" />
@@ -498,15 +510,15 @@
           <input type="number" id="taskTarget" class="rule-editor-input" placeholder="目標分數" min="1" />
           <button class="btn btn-primary btn-small" onclick="createTask()">＋ 新增任務</button>
         </div>
-        
+
         <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 16px; padding: 8px 14px;">
           ✦ 任務進度會根據全班總積分自動更新。達標後老師可手動標記為完成並發放獎勵。
         </div>
-        
+
         <div id="taskList"></div>
       </div>
     </section>
-    
+
     <!-- ============================================
          AI 助手
     ============================================ -->
@@ -798,39 +810,39 @@
 
 
 <!-- 應用程式邏輯(載入順序很重要) -->
-<script src="js/00-firebase.js?v=20260810a"></script>
-<script src="js/00b-session.js?v=20260810a"></script>
-<script src="js/00c-auth-ui.js?v=20260810a"></script>
-<script src="js/01-constants.js?v=20260810a"></script>
-<script src="js/02-state.js?v=20260810a"></script>
-<script src="js/03-storage.js?v=20260810a"></script>
-<script src="js/04-utils.js?v=20260810a"></script>
-<script src="js/05-pet-engine.js?v=20260810a"></script>
-<script src="js/06-ai.js?v=20260810a"></script>
-<script src="js/07-excel.js?v=20260810a"></script>
-<script src="js/10-nav.js?v=20260810a"></script>
-<script src="js/feature-setup.js?v=20260810a"></script>
-<script src="js/feature-students.js?v=20260810a"></script>
-<script src="js/feature-dashboard.js?v=20260810a"></script>
-<script src="js/feature-attendance.js?v=20260810a"></script>
-<script src="js/feature-picker.js?v=20260810a"></script>
-<script src="js/feature-timer.js?v=20260810a"></script>
-<script src="js/feature-seating.js?v=20260810a"></script>
-<script src="js/feature-grouping.js?v=20260810a"></script>
-<script src="js/feature-quiz.js?v=20260810a"></script>
-<script src="js/feature-leaderboard.js?v=20260810a"></script>
-<script src="js/feature-student-view.js?v=20260810a"></script>
-<script src="js/feature-contact-book.js?v=20260810a"></script>
-<script src="js/feature-homework.js?v=20260810a"></script>
-<script src="js/feature-shop.js?v=20260810a"></script>
-<script src="js/feature-class-tasks.js?v=20260810a"></script>
-<script src="js/feature-ai-features.js?v=20260810a"></script>
-<script src="js/feature-projector.js?v=20260810a"></script>
-<script src="js/feature-overview.js?v=20260810a"></script>
-<script src="js/feature-report.js?v=20260810a"></script>
-<script src="js/feature-rules.js?v=20260810a"></script>
-<script src="js/feature-settings.js?v=20260810a"></script>
-<script src="js/99-app.js?v=20260810a"></script>
+<script src="js/00-firebase.js?v=20260810b"></script>
+<script src="js/00b-session.js?v=20260810b"></script>
+<script src="js/00c-auth-ui.js?v=20260810b"></script>
+<script src="js/01-constants.js?v=20260810b"></script>
+<script src="js/02-state.js?v=20260810b"></script>
+<script src="js/03-storage.js?v=20260810b"></script>
+<script src="js/04-utils.js?v=20260810b"></script>
+<script src="js/05-pet-engine.js?v=20260810b"></script>
+<script src="js/06-ai.js?v=20260810b"></script>
+<script src="js/07-excel.js?v=20260810b"></script>
+<script src="js/10-nav.js?v=20260810b"></script>
+<script src="js/feature-setup.js?v=20260810b"></script>
+<script src="js/feature-students.js?v=20260810b"></script>
+<script src="js/feature-dashboard.js?v=20260810b"></script>
+<script src="js/feature-attendance.js?v=20260810b"></script>
+<script src="js/feature-picker.js?v=20260810b"></script>
+<script src="js/feature-timer.js?v=20260810b"></script>
+<script src="js/feature-seating.js?v=20260810b"></script>
+<script src="js/feature-grouping.js?v=20260810b"></script>
+<script src="js/feature-quiz.js?v=20260810b"></script>
+<script src="js/feature-leaderboard.js?v=20260810b"></script>
+<script src="js/feature-student-view.js?v=20260810b"></script>
+<script src="js/feature-contact-book.js?v=20260810b"></script>
+<script src="js/feature-homework.js?v=20260810b"></script>
+<script src="js/feature-shop.js?v=20260810b"></script>
+<script src="js/feature-class-tasks.js?v=20260810b"></script>
+<script src="js/feature-ai-features.js?v=20260810b"></script>
+<script src="js/feature-projector.js?v=20260810b"></script>
+<script src="js/feature-overview.js?v=20260810b"></script>
+<script src="js/feature-report.js?v=20260810b"></script>
+<script src="js/feature-rules.js?v=20260810b"></script>
+<script src="js/feature-settings.js?v=20260810b"></script>
+<script src="js/99-app.js?v=20260810b"></script>
 
 </body>
 </html>

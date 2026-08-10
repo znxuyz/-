@@ -81,6 +81,7 @@ function serializeState() {
     homework: state.homework,
     classTasks: state.classTasks,
     shopHistory: state.shopHistory,
+    shopItems: state.shopItems,
     quizzes: state.quizzes
   };
 }

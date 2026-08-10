@@ -336,3 +336,223 @@
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* ============================================
+   獎品管理(老師端)
+============================================ */
+
+.shop-create-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.shop-item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.shop-item-card {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-left: 4px solid var(--gold);
+  border-radius: 3px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-item-card.inactive {
+  opacity: 0.55;
+  border-left-color: var(--ink-muted);
+}
+
+.shop-item-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.shop-item-icon-input {
+  width: 46px;
+  font-size: 22px;
+  text-align: center;
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  background: var(--paper-warm);
+  padding: 4px;
+}
+
+.shop-item-name-input {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--forest-deep);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  padding: 4px 6px;
+}
+
+.shop-item-name-input:hover,
+.shop-item-name-input:focus {
+  border-color: var(--paper-shadow);
+  background: var(--paper-warm);
+}
+
+.shop-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.shop-item-row input { width: 80px; }
+
+.shop-item-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--paper-warm);
+  padding-top: 8px;
+}
+
+/* ---------- 兌換紀錄 ---------- */
+
+.sub-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  border-radius: 9px;
+  background: var(--sunset);
+  color: #fff;
+  font-size: 11px;
+}
+
+.purchase-section-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--forest);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--paper-shadow);
+}
+
+.purchase-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.purchase-row.rejected { opacity: 0.6; }
+.purchase-row.delivered { border-left: 3px solid var(--forest-light); }
+.purchase-row.paid { border-left: 3px solid var(--sunset); }
+
+.purchase-icon { font-size: 24px; line-height: 1; }
+.purchase-main { flex: 1; font-size: 14px; }
+.purchase-meta { color: var(--ink-muted); font-size: 12px; }
+
+/* ============================================
+   兌換商店(學生端)
+============================================ */
+
+.prize-balance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  background: var(--forest-deep);
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 14px 20px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.prize-balance strong {
+  font-family: var(--font-display);
+  font-size: 30px;
+  color: var(--gold);
+}
+
+.prize-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.prize-card.disabled { opacity: 0.55; }
+
+.prize-icon { font-size: 34px; line-height: 1; flex-shrink: 0; }
+.prize-body { flex: 1; }
+
+.prize-name {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.prize-desc {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+  line-height: 1.6;
+}
+
+.prize-meta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-top: 4px;
+}
+
+.prize-price {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--sunset);
+}
+
+.prize-stock { font-size: 11px; color: var(--ink-muted); }
+
+.prize-card button { flex-shrink: 0; }
+
+.prize-status {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  background: var(--paper-shadow);
+  color: var(--ink-soft);
+}
+
+.prize-status.paid      { background: rgba(217,119,66,0.18); color: var(--sunset); }
+.prize-status.delivered { background: rgba(74,124,98,0.18);  color: var(--forest); }
+.prize-status.rejected  { background: rgba(194,91,78,0.18);  color: var(--sick); }
+
+.prize-reason {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}

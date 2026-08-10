@@ -31,7 +31,8 @@ function switchSubTab(parent, subtab) {
   if (subtab === 'grouping') renderGroupingControls();
   if (subtab === 'diary') renderContactDiary();
   if (subtab === 'homework') renderHomeworkList();
-  if (subtab === 'shop') renderShop();
+  if (subtab === 'shopItems') renderShopItems();
+  if (subtab === 'purchases') renderPurchaseList();
   if (subtab === 'tasks') renderTasksList();
   if (subtab === 'general') renderOverview();
   if (subtab === 'report') renderReportStudentList();
@@ -99,11 +100,4 @@ function renderContactView() {
   }
 }
 
-function renderShopView() {
-  const activeSubtab = document.querySelector('#shopView .sub-tab.active');
-  if (activeSubtab) {
-    const subtabName = activeSubtab.dataset.subtab;
-    if (subtabName === 'shop') renderShop();
-    if (subtabName === 'tasks') renderTasksList();
-  }
-}
+/* renderShopView 定義在 feature-shop.js */
