@@ -16,6 +16,10 @@ const StudentApp = {
   petChoice: null,        // 已送出但老師還沒收進班級資料的選擇
   pickedPet: null,        // 挑選畫面上目前點選的物種
   draftNickname: '',
+  tab: 'pet',             // pet | rank | quiz
+  rankTab: 'individual',  // individual | group
+  allStudents: [],        // 全班資料,排行榜用
+  groupSet: null,         // 老師最近儲存的分組
 
   async enter(classInfo) {
     this.classInfo = classInfo;
@@ -36,8 +40,13 @@ const StudentApp = {
       return;
     }
     const blob = doc.blob || {};
-    this.student = (blob.students || []).find(s => s.id === studentId) || null;
+    this.allStudents = blob.students || [];
+    this.student = this.allStudents.find(s => s.id === studentId) || null;
     this.classRules = blob.rules || [];
+
+    // 排行榜用老師最近儲存的那份分組
+    const sets = blob.groupSets || [];
+    this.groupSet = sets.length > 0 ? sets[sets.length - 1] : null;
 
     // 老師還沒把選擇收進班級資料前,先用學生自己的選擇單顯示
     this.petChoice = this.student && this.student.pet
@@ -64,31 +73,7 @@ const StudentApp = {
       return;
     }
 
-    const s = this.student;
-    const petHtml = s && s.pet
-      ? this.renderPet(s)
-      : this.petChoice
-        ? this.renderPendingPet()
-        : this.renderPetPicker();
-
-    const quizHtml = this.quizzes.length === 0
-      ? '<div class="student-empty">目前沒有待作答的測驗</div>'
-      : this.quizzes.map(q => {
-          const done = this.submissions[q.id];
-          return `
-          <div class="student-quiz-card ${done ? 'done' : ''}">
-            <div>
-              <div class="student-quiz-title">${escapeHtml(q.title)}</div>
-              <div class="student-quiz-meta">
-                ${q.questions.length} 題${q.dueDate ? ' · 截止 ' + q.dueDate : ''}
-              </div>
-            </div>
-            ${done
-              ? '<span class="student-quiz-done">✓ 已交卷</span>'
-              : `<button class="btn btn-accent btn-small"
-                   onclick="StudentApp.openQuiz('${q.id}')">開始作答</button>`}
-          </div>`;
-        }).join('');
+    const pending = this.quizzes.filter(q => !this.submissions[q.id]).length;
 
     document.getElementById('studentView').innerHTML = `
       <header class="student-header">
@@ -103,20 +88,114 @@ const StudentApp = {
         </div>
       </header>
 
+      <nav class="student-tabs">
+        <button class="student-tab ${this.tab === 'pet' ? 'active' : ''}"
+                onclick="StudentApp.setTab('pet')">我的守護獸</button>
+        <button class="student-tab ${this.tab === 'rank' ? 'active' : ''}"
+                onclick="StudentApp.setTab('rank')">排行榜</button>
+        <button class="student-tab ${this.tab === 'quiz' ? 'active' : ''}"
+                onclick="StudentApp.setTab('quiz')">
+          測驗${pending > 0 ? `<span class="student-tab-badge">${pending}</span>` : ''}
+        </button>
+      </nav>
+
       <main class="student-main">
-        <section class="student-pet-section">${petHtml}</section>
-
-        <section class="student-section">
-          <div class="student-section-title">我的測驗</div>
-          ${quizHtml}
-        </section>
-
-        <section class="student-section">
-          <div class="student-section-title">最近的積分紀錄</div>
-          ${this.renderHistory()}
-        </section>
+        ${this.tab === 'pet'  ? this.renderPetTab()  : ''}
+        ${this.tab === 'rank' ? this.renderRankTab() : ''}
+        ${this.tab === 'quiz' ? this.renderQuizTab() : ''}
       </main>
     `;
+  },
+
+  setTab(tab) {
+    this.tab = tab;
+    this.render();
+  },
+
+  /* ---------- 分頁:我的守護獸 ---------- */
+
+  renderPetTab() {
+    const s = this.student;
+    const petHtml = s && s.pet
+      ? this.renderPet(s)
+      : this.petChoice
+        ? this.renderPendingPet()
+        : this.renderPetPicker();
+
+    return `
+      <section class="student-pet-section">${petHtml}</section>
+      <section class="student-section">
+        <div class="student-section-title">最近的積分紀錄</div>
+        ${this.renderHistory()}
+      </section>`;
+  },
+
+  /* ---------- 分頁:測驗 ---------- */
+
+  renderQuizTab() {
+    if (this.quizzes.length === 0) {
+      return '<div class="student-empty">目前沒有待作答的測驗</div>';
+    }
+    return this.quizzes.map(q => {
+      const done = this.submissions[q.id];
+      return `
+      <div class="student-quiz-card ${done ? 'done' : ''}">
+        <div>
+          <div class="student-quiz-title">${escapeHtml(q.title)}</div>
+          <div class="student-quiz-meta">
+            ${q.questions.length} 題${q.dueDate ? ' · 截止 ' + q.dueDate : ''}
+            ${q.scoreMode === 'topN' ? ` · 前 ${q.topN} 名得分` : ''}
+          </div>
+        </div>
+        ${done
+          ? '<span class="student-quiz-done">✓ 已交卷</span>'
+          : `<button class="btn btn-accent btn-small"
+               onclick="StudentApp.openQuiz('${q.id}')">開始作答</button>`}
+      </div>`;
+    }).join('');
+  },
+
+  /* ---------- 分頁:排行榜 ---------- */
+
+  renderRankTab() {
+    const hasGroups = !!(this.groupSet && this.groupSet.groups && this.groupSet.groups.length);
+    const showGroup = this.rankTab === 'group' && hasGroups;
+
+    const rows = showGroup
+      ? Leaderboard.groups(this.allStudents, this.groupSet)
+      : Leaderboard.individual(this.allStudents);
+
+    // 小組榜要高亮的是「我所屬的那一組」
+    const myId = showGroup ? this.myGroupId(rows) : this.classInfo.studentId;
+
+    const switcher = hasGroups ? `
+      <div class="rank-switch">
+        <button class="rank-switch-btn ${!showGroup ? 'active' : ''}"
+                onclick="StudentApp.setRankTab('individual')">個人榜</button>
+        <button class="rank-switch-btn ${showGroup ? 'active' : ''}"
+                onclick="StudentApp.setRankTab('group')">小組榜</button>
+      </div>` : '';
+
+    return `
+      ${switcher}
+      ${showGroup ? `<div class="rank-groupset-name">依「${escapeHtml(this.groupSet.name)}」分組</div>` : ''}
+      ${Leaderboard.renderPodium(rows, { highlightId: myId })}
+      ${Leaderboard.renderMyRank(rows, myId, showGroup ? '我這組的名次' : '我的名次')}
+      ${Leaderboard.renderList(rows, { highlightId: myId })}
+    `;
+  },
+
+  setRankTab(tab) {
+    this.rankTab = tab;
+    this.render();
+  },
+
+  /* 找出自己在哪一組 */
+  myGroupId(groupRows) {
+    if (!this.groupSet) return null;
+    const idx = this.groupSet.groups.findIndex(members =>
+      members.some(m => m.id === this.classInfo.studentId));
+    return idx >= 0 ? 'g' + idx : null;
   },
 
   renderPet(s) {

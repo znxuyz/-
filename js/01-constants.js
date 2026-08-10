@@ -15,6 +15,9 @@ const PET_SPECIES = [
 const STAGE_NAMES = ['靈卵', '幼獸', '成獸', '守護神獸'];
 const STAGE_THRESHOLDS = [0, 15, 50, 150]; // 累積積分達到此值時進化
 
+/* 圖片檔名用的階段代號,對應 assets/pets/{物種}-{階段}.png */
+const STAGE_KEYS = ['egg', 'baby', 'adult', 'guardian'];
+
 const STAGE_ICONS = {
   bear:     ['🥚', '🐻', '🐻', '🐻'],
   cat:      ['🥚', '🐱', '🐱', '🐱'],

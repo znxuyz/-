@@ -70,7 +70,7 @@ function runPicker() {
   const rollInterval = setInterval(() => {
     const randomStudent = state.students[Math.floor(Math.random() * state.students.length)];
     display.textContent = randomStudent.name;
-    petDisplay.textContent = randomStudent.pet ? PetEngine.getIcon(randomStudent) : '✦';
+    petDisplay.innerHTML = randomStudent.pet ? PetEngine.getIcon(randomStudent) : "✦";
     rollCount++;
     
     if (rollCount >= totalRolls) {
@@ -99,7 +99,7 @@ function runPicker() {
       // 顯示結果
       if (picked.length === 1) {
         display.textContent = picked[0].name;
-        petDisplay.textContent = picked[0].pet ? PetEngine.getIcon(picked[0]) : '✦';
+        petDisplay.innerHTML = picked[0].pet ? PetEngine.getIcon(picked[0]) : "✦";
       } else if (picked.length > 1) {
         display.textContent = picked.map(p => p.name).join('、');
         petDisplay.textContent = '✦';

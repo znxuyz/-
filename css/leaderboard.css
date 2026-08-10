@@ -1,0 +1,301 @@
+/* ============================================
+   排行榜與頒獎台
+============================================ */
+
+/* ---------- 學生端分頁 ---------- */
+
+.student-tabs {
+  display: flex;
+  background: var(--forest);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.student-tab {
+  flex: 1;
+  padding: 13px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: rgba(250, 247, 240, 0.65);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.student-tab.active {
+  color: var(--paper);
+  border-bottom-color: var(--gold);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.student-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  border-radius: 9px;
+  background: var(--sunset);
+  color: #fff;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+/* ---------- 個人 / 小組 切換 ---------- */
+
+.rank-switch {
+  display: flex;
+  gap: 6px;
+  background: var(--paper-shadow);
+  border-radius: 20px;
+  padding: 4px;
+  margin-bottom: 18px;
+}
+
+.rank-switch-btn {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rank-switch-btn.active {
+  background: var(--paper);
+  color: var(--forest-deep);
+  box-shadow: var(--shadow-sm);
+}
+
+.rank-groupset-name {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-bottom: 14px;
+}
+
+/* ---------- 頒獎台 ----------
+   台階高度由 JS 依分數比例算出寫在 style,
+   這裡只負責動畫:從 0 長到那個高度。 */
+
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 0 0;
+  min-height: 300px;
+}
+
+.podium-column {
+  flex: 1;
+  max-width: 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.podium-figure {
+  text-align: center;
+  margin-bottom: 10px;
+  opacity: 0;
+  animation: podium-drop 0.55s var(--ease-out) forwards;
+}
+
+@keyframes podium-drop {
+  from { opacity: 0; transform: translateY(-26px) scale(0.85); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.podium-icon {
+  font-size: 44px;
+  line-height: 1;
+}
+
+.podium-medal {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.podium-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--forest-deep);
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.podium-score {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.podium-block {
+  width: 100%;
+  border-radius: 5px 5px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10px;
+  box-shadow: var(--shadow-md);
+  transform-origin: bottom;
+  animation: podium-rise 0.75s var(--ease-out) forwards;
+}
+
+/* 從底部長上來 —— 用 scaleY 而不是動畫 height,
+   避免每一幀都觸發版面重算 */
+@keyframes podium-rise {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+.podium-rank-1 { background: linear-gradient(180deg, #f2cd5c, #d9a441); }
+.podium-rank-2 { background: linear-gradient(180deg, #cfd3d8, #a8adb4); }
+.podium-rank-3 { background: linear-gradient(180deg, #e0955c, #c4703a); }
+
+.podium-rank-num {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.podium-column.is-me .podium-name {
+  color: var(--sunset);
+}
+
+.podium-column.is-me .podium-name::after {
+  content: " ★";
+  color: var(--gold);
+}
+
+/* ---------- 我的名次 ---------- */
+
+.my-rank-card {
+  background: var(--forest-deep);
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 16px 20px;
+  margin: 24px 0 20px;
+}
+
+.my-rank-label {
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: 0.15em;
+  margin-bottom: 8px;
+}
+
+.my-rank-body {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.my-rank-place {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.my-rank-num {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 40px;
+  line-height: 1;
+}
+
+.my-rank-of {
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.my-rank-score {
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.my-rank-note {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+/* ---------- 名次列表(第 4 名以後) ---------- */
+
+.rank-list {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--paper-warm);
+}
+
+.rank-row:last-child { border-bottom: none; }
+
+.rank-row.is-me {
+  background: rgba(200, 164, 77, 0.16);
+  border-left: 3px solid var(--gold);
+}
+
+.rank-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--ink-muted);
+  width: 26px;
+  flex-shrink: 0;
+}
+
+.rank-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.rank-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+}
+
+.rank-sub {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.rank-score {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--forest);
+  flex-shrink: 0;
+}
+
+/* 動畫會讓部分孩子不舒服,尊重系統設定 */
+@media (prefers-reduced-motion: reduce) {
+  .podium-block,
+  .podium-figure {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

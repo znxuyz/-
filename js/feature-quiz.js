@@ -26,11 +26,16 @@ function createQuiz() {
     return;
   }
 
+  const scoreMode = document.getElementById('quizScoreMode').value;
+  const topN = parseInt(document.getElementById('quizTopN').value) || 5;
+
   state.quizzes.unshift({
     id: 'qz_' + Date.now(),
     title,
     dueDate: dueDate || '',
     pointsPerQuestion: pointsPer,
+    scoreMode,                // all(答對就得分) / topN(前 N 名得分)
+    topN,
     questions: [],
     status: 'draft',          // draft(編輯中) / open(開放作答) / closed(已結束)
     createdAt: Date.now()
@@ -41,6 +46,12 @@ function createQuiz() {
   save();
   renderQuizList();
   toast('測驗已建立,接著新增題目');
+}
+
+/* 選了「只有前幾名得分」才需要填名額 */
+function toggleTopNInput() {
+  const mode = document.getElementById('quizScoreMode').value;
+  document.getElementById('quizTopN').style.display = mode === 'topN' ? '' : 'none';
 }
 
 function getQuiz(quizId) {
@@ -178,31 +189,49 @@ async function collectQuizResults(quizId) {
     return;
   }
 
+  // 先全部批改,才能排名次
+  const graded = submissions.map(sub => ({
+    sub,
+    student: state.students.find(s => s.id === sub.studentId),
+    score: gradeSubmission(quiz, sub.answers || {})
+  })).filter(g => g.student);
+
+  // 名次:答對多的在前,同分則先交卷的在前
+  graded.sort((a, b) => b.score - a.score || a.sub.submittedAt - b.sub.submittedAt);
+  graded.forEach((g, i) => { g.rank = i + 1; });
+
+  const isTopN = quiz.scoreMode === 'topN';
   let newlyAwarded = 0;
   let totalPoints = 0;
+  let missedCutoff = 0;
 
-  submissions.forEach(sub => {
-    const student = state.students.find(s => s.id === sub.studentId);
-    if (!student) return;
+  graded.forEach(g => {
+    const { student, score, sub, rank } = g;
 
     if (!student.quizResults) student.quizResults = {};
     if (student.quizResults[quizId]) return;   // 已結算過,跳過
 
-    // 批改在這裡做 — 正確答案只存在老師端,學生拿不到
-    const score = gradeSubmission(quiz, sub.answers || {});
-    const points = score * quiz.pointsPerQuestion;
+    // 前 N 名模式:沒答對任何一題就不算進名次,免得零分也佔名額
+    const inTopN = rank <= (quiz.topN || 0) && score > 0;
+    const earns = isTopN ? inTopN : true;
+    const points = earns ? score * quiz.pointsPerQuestion : 0;
 
     student.quizResults[quizId] = {
       score,
       total: quiz.questions.length,
       awarded: points,
+      rank,
       at: sub.submittedAt
     };
 
     if (points > 0) {
-      applyPointsToStudent(student.id, points,
-        `測驗「${quiz.title}」答對 ${score}/${quiz.questions.length} 題`);
+      const reason = isTopN
+        ? `測驗「${quiz.title}」第 ${rank} 名,答對 ${score}/${quiz.questions.length} 題`
+        : `測驗「${quiz.title}」答對 ${score}/${quiz.questions.length} 題`;
+      applyPointsToStudent(student.id, points, reason);
       totalPoints += points;
+    } else if (isTopN && score > 0) {
+      missedCutoff++;
     }
     newlyAwarded++;
   });
@@ -213,7 +242,8 @@ async function collectQuizResults(quizId) {
   if (newlyAwarded === 0) {
     toast(`目前 ${submissions.length} 份作答都已結算過`);
   } else {
-    toast(`✦ 結算 ${newlyAwarded} 位學生,共發出 ${totalPoints} 分`);
+    toast(`✦ 結算 ${newlyAwarded} 位學生,共發出 ${totalPoints} 分` +
+          (missedCutoff > 0 ? `(${missedCutoff} 位答對但未進前 ${quiz.topN} 名)` : ''));
   }
 }
 
@@ -264,6 +294,9 @@ function renderQuizList() {
           <div class="quiz-card-title">${escapeHtml(quiz.title)}</div>
           <div class="quiz-card-meta">
             ${quiz.questions.length} 題 · 每題 ${quiz.pointsPerQuestion} 分
+            · ${quiz.scoreMode === 'topN'
+                ? `<strong>前 ${quiz.topN} 名得分</strong>`
+                : '答對就得分'}
             ${quiz.dueDate ? ' · 截止 ' + quiz.dueDate : ''}
             · 已結算 ${submitted}/${state.students.length} 人
           </div>
@@ -352,15 +385,17 @@ function renderQuizEditor(quiz) {
 function renderQuizResults(quiz) {
   const rows = state.students
     .filter(s => s.quizResults && s.quizResults[quiz.id])
-    .map(s => {
-      const r = s.quizResults[quiz.id];
+    .map(s => ({ s, r: s.quizResults[quiz.id] }))
+    .sort((a, b) => (a.r.rank || 999) - (b.r.rank || 999))
+    .map(({ s, r }) => {
       const pct = r.total > 0 ? Math.round(r.score / r.total * 100) : 0;
-      return `<tr>
+      return `<tr class="${r.awarded > 0 ? '' : 'no-award'}">
+        <td>${r.rank || '—'}</td>
         <td>${escapeHtml(s.seatNumber || '')}</td>
         <td>${escapeHtml(s.name)}</td>
         <td>${r.score}/${r.total}</td>
         <td>${pct}%</td>
-        <td>+${r.awarded} 分</td>
+        <td>${r.awarded > 0 ? '+' + r.awarded + ' 分' : '—'}</td>
       </tr>`;
     }).join('');
 
@@ -370,8 +405,11 @@ function renderQuizResults(quiz) {
 
   return `<div class="quiz-results">
     <table class="quiz-results-table">
-      <thead><tr><th>座號</th><th>姓名</th><th>答對</th><th>正確率</th><th>獲得</th></tr></thead>
+      <thead><tr><th>名次</th><th>座號</th><th>姓名</th><th>答對</th><th>正確率</th><th>獲得</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    ${quiz.scoreMode === 'topN'
+      ? `<div class="quiz-results-note">名次以答對題數排序,同分者先交卷的在前。只有前 ${quiz.topN} 名且有答對的學生得分。</div>`
+      : ''}
   </div>`;
 }

@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="css/quiz.css">
 <link rel="stylesheet" href="css/student.css">
 <link rel="stylesheet" href="css/pet-picker.css">
+<link rel="stylesheet" href="css/leaderboard.css">
 
 <!-- SheetJS for Excel import -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -365,7 +366,19 @@
         <input type="date" id="quizDueDate" class="rule-editor-input" title="截止日期" />
         <input type="number" id="quizPoints" class="rule-editor-input" value="1" min="0" max="20"
                title="每答對一題可得幾分" placeholder="每題分數" />
+        <select id="quizScoreMode" class="rule-editor-input" style="max-width:190px;"
+                title="計分方式" onchange="toggleTopNInput()">
+          <option value="all">答對就得分</option>
+          <option value="topN">只有前幾名得分</option>
+        </select>
+        <input type="number" id="quizTopN" class="rule-editor-input" value="5" min="1" max="40"
+               title="前幾名可得分" placeholder="前幾名" style="width:100px; display:none;" />
         <button class="btn btn-primary btn-small" onclick="createQuiz()">＋ 建立測驗</button>
+      </div>
+
+      <div class="quiz-mode-hint">
+        ✦ <strong>答對就得分</strong>:每位學生依自己答對的題數計分,適合回家作業。<br>
+        ✦ <strong>只有前幾名得分</strong>:依答對題數排名,同分時先交卷的在前,只有前 N 名得分,適合課堂搶答。
       </div>
 
       <div id="quizList"></div>
@@ -805,6 +818,7 @@
 <script src="js/feature-seating.js"></script>
 <script src="js/feature-grouping.js"></script>
 <script src="js/feature-quiz.js"></script>
+<script src="js/feature-leaderboard.js"></script>
 <script src="js/feature-student-view.js"></script>
 <script src="js/feature-contact-book.js"></script>
 <script src="js/feature-homework.js"></script>

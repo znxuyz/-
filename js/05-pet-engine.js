@@ -41,11 +41,23 @@ const PetEngine = {
     return 'healthy';
   },
   
-  // 取得當前圖示
+  // 取得當前圖示。
+  // assets/pets/ 有對應的 PNG 就用圖,沒有就退回 emoji。
+  // 用 onerror 判斷而不是預先檢查檔案,因為前端無法同步得知檔案存不存在,
+  // 這樣老師也可以一次只上傳幾張,沒上傳的維持 emoji。
   getIcon(student) {
     if (!student.pet) return '❓';
     const stage = this.getStage(student.totalPoints);
-    return STAGE_ICONS[student.pet][stage];
+    const emoji = STAGE_ICONS[student.pet][stage];
+    const src = `assets/pets/${student.pet}-${STAGE_KEYS[stage]}.png`;
+    return `<img class="pet-img" src="${src}" alt="${emoji}" loading="lazy"
+      onerror="this.outerHTML='<span class=&quot;pet-emoji&quot;>${emoji}</span>'">`;
+  },
+
+  // 純 emoji 版本,用於無法放圖片的場合(例如 alert、匯出的文字報表)
+  getEmoji(student) {
+    if (!student.pet) return '❓';
+    return STAGE_ICONS[student.pet][this.getStage(student.totalPoints)];
   },
   
   // 取得配件圖示(若有裝備)

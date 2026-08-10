@@ -279,6 +279,8 @@ const Cloud = {
       title: quiz.title,
       dueDate: quiz.dueDate || '',
       pointsPerQuestion: quiz.pointsPerQuestion,
+      scoreMode: quiz.scoreMode || 'all',
+      topN: quiz.topN || 0,
       status: 'open',
       publishedAt: Date.now(),
       questions: quiz.questions.map(q => ({

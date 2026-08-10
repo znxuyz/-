@@ -348,3 +348,22 @@ body {
 .flex-row { display: flex; gap: 12px; align-items: center; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 .hidden { display: none !important; }
+
+/* ============================================
+   守護獸圖片
+   ────────────────────────────────────────────
+   assets/pets/ 有對應 PNG 時用圖片,沒有則自動退回 emoji。
+   圖片吃父層設定的字級,所以放大縮小的邏輯和 emoji 一致。
+============================================ */
+.pet-img {
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.pet-emoji {
+  display: inline-block;
+  line-height: 1;
+}
