@@ -44,6 +44,8 @@ let state = {
   shopHistory: [],          // [{ studentId, itemId, time, price }]
   // 老師上架的兌換獎品
   shopItems: [],            // [{ id, name, icon, price, stock, description, active }]
+  // 領地戰題庫(含正確答案,只留在老師端)
+  territoryQuestions: [], // [{ id, text, options, answer, difficulty }]
   // 作業測驗題庫
   quizzes: []               // [{ id, title, questions, status, dueDate, pointsPerQuestion }]
 };

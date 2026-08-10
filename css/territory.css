@@ -1,0 +1,318 @@
+/* ============================================
+   領地佔領戰
+============================================ */
+
+.tg-setup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.territory-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-bottom: 14px;
+}
+
+.territory-badge {
+  padding: 3px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.territory-badge.running { background: rgba(217,119,66,0.18); color: var(--sunset); }
+.territory-badge.ended   { background: var(--paper-shadow);   color: var(--ink-muted); }
+
+/* ---------- 六角地圖 ----------
+   用 SVG 的 viewBox 做等比縮放,手機到投影機都不會破版。 */
+
+.hex-map {
+  width: 100%;
+  max-height: 60vh;
+  display: block;
+  margin: 0 auto;
+}
+
+.hex polygon { transition: opacity 0.25s, transform 0.25s var(--ease-out); }
+
+/* 可攻擊的格子會呼吸,孩子一眼看得出哪裡能打 */
+.hex.attackable {
+  cursor: pointer;
+}
+
+.hex.attackable polygon {
+  stroke: var(--gold);
+  stroke-width: 3;
+  animation: hex-pulse 1.8s ease-in-out infinite;
+}
+
+.hex.attackable:hover polygon {
+  opacity: 1;
+  stroke-width: 4;
+}
+
+@keyframes hex-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.9; }
+}
+
+.hex-base-mark {
+  text-anchor: middle;
+  font-size: 18px;
+  fill: rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+
+/* ---------- 各組佔領數 ---------- */
+
+.territory-standings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.standing-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.standing-row.is-me { font-weight: 700; }
+
+.standing-name { width: 62px; flex-shrink: 0; }
+
+.standing-bar {
+  flex: 1;
+  height: 10px;
+  background: var(--paper-shadow);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.standing-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.5s var(--ease-out);
+}
+
+.standing-count {
+  width: 30px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+
+/* ---------- 即時戰報 ---------- */
+
+.tg-feed-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--forest);
+  margin: 24px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--paper-shadow);
+}
+
+.feed-row {
+  display: flex;
+  gap: 10px;
+  padding: 7px 14px;
+  font-size: 13px;
+  border-left: 3px solid var(--paper-shadow);
+  background: var(--paper);
+  margin-bottom: 4px;
+}
+
+.feed-row.correct { border-left-color: var(--forest-light); }
+.feed-row.wrong   { border-left-color: var(--sick); opacity: 0.7; }
+.feed-row.void    { border-left-color: var(--ink-muted); opacity: 0.6; }
+
+.feed-name { font-weight: 600; color: var(--ink); min-width: 70px; }
+.feed-msg  { color: var(--ink-soft); }
+
+/* ---------- 題庫 ---------- */
+
+.tq-form {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.tq-form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tq-form-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tq-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.tq-opt > span {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--moss);
+  width: 14px;
+}
+
+.tq-opt input[type="text"] { flex: 1; }
+
+.tq-summary {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-bottom: 12px;
+}
+
+.tq-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 6px;
+}
+
+.tq-diff {
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tq-text { flex: 1; font-size: 14px; }
+
+.tq-answer {
+  font-size: 12px;
+  color: var(--forest-light);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ============================================
+   學生端
+============================================ */
+
+.student-tab.war { color: var(--gold); }
+
+.war-header {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-left: 4px solid;
+  border-radius: 3px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+
+.war-my-group {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.war-hint {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 3px;
+  line-height: 1.7;
+}
+
+.war-legend {
+  font-size: 11px;
+  color: var(--ink-muted);
+  text-align: center;
+  line-height: 1.8;
+  margin-top: 10px;
+}
+
+/* ---------- 作答 ---------- */
+
+.war-question {
+  background: var(--paper);
+  border: 1px solid var(--paper-shadow);
+  border-radius: 4px;
+  padding: 18px;
+}
+
+.war-q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.war-q-diff {
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 10px;
+}
+
+.war-q-target {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: var(--paper-warm);
+  border-radius: 3px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+
+.war-q-progress {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--sunset);
+}
+
+.war-q-text {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: var(--ink);
+  margin-bottom: 16px;
+}
+
+/* 領地戰是自己點選,不用 radio,所以要另外標示選中狀態 */
+.student-option.picked {
+  background: rgba(74, 124, 98, 0.12);
+  border-color: var(--forest-light);
+}

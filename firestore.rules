@@ -88,6 +88,29 @@ service cloud.firestore {
         allow update, delete: if isClassTeacher();
       }
 
+      /* 領地戰的地圖與題庫:學生只讀不寫。
+         題庫文件裡不含正確答案 —— 判定在老師端做。 */
+      match /territory/{docId} {
+        allow read: if signedIn();
+        allow write: if signedIn()
+          && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+      }
+
+      /* 領地戰的作答:學生只能建立自己的,而且不能自己寫判定結果。
+         建立後就不能再改,避免把 wrong 改成 correct。 */
+      match /tattempts/{attemptId} {
+        function isClassTeacher() {
+          return signedIn()
+            && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+        }
+        allow create: if signedIn()
+                      && request.resource.data.uid == request.auth.uid
+                      && request.resource.data.status == 'pending';
+        allow read: if isClassTeacher()
+                    || (signedIn() && resource.data.uid == request.auth.uid);
+        allow update, delete: if isClassTeacher();
+      }
+
       /* 學生作答:
          · 學生只能建立/修改 id 為 {quizId}__{自己的uid} 的那一份
          · 而且文件裡的 uid 欄位必須等於自己,不能偽造成別人

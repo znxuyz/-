@@ -404,6 +404,62 @@ const Cloud = {
       }, err => console.warn('[Cloud] 兌換監聽中斷:', err.message));
   },
 
+  /* ---------- 領地佔領戰 ----------
+     整張地圖存在一份文件的 map 欄位裡。91 格也才 2KB,
+     一次讀寫就更新完,學生端只要監聽這一份。
+     只有老師寫得動地圖;學生寫的是 tattempts 裡自己的作答單。 */
+
+  async saveTerritoryGame(classId, game) {
+    await this.db.collection('classes').doc(classId)
+      .collection('territory').doc('current').set(game);
+  },
+
+  watchTerritoryGame(classId, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('territory').doc('current')
+      .onSnapshot(snap => cb(snap.exists ? snap.data() : null),
+        err => console.warn('[領地戰] 地圖監聽中斷:', err.message));
+  },
+
+  /* 題目一樣不含正確答案 */
+  async publishTerritoryQuestions(classId, questions) {
+    await this.db.collection('classes').doc(classId)
+      .collection('territory').doc('questions').set({ questions, updatedAt: Date.now() });
+  },
+
+  watchTerritoryQuestions(classId, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('territory').doc('questions')
+      .onSnapshot(snap => cb(snap.exists ? (snap.data().questions || []) : []),
+        err => console.warn('[領地戰] 題庫監聽中斷:', err.message));
+  },
+
+  async createTerritoryAttempt(classId, uid, payload) {
+    await this.db.collection('classes').doc(classId)
+      .collection('tattempts').add({
+        ...payload, uid, status: 'pending', createdAt: Date.now()
+      });
+  },
+
+  async updateTerritoryAttempt(classId, attemptId, patch) {
+    await this.db.collection('classes').doc(classId)
+      .collection('tattempts').doc(attemptId).update(patch);
+  },
+
+  watchTerritoryAttempts(classId, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('tattempts')
+      .onSnapshot(snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        err => console.warn('[領地戰] 作答監聽中斷:', err.message));
+  },
+
+  watchMyTerritoryAttempts(classId, uid, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('tattempts').where('uid', '==', uid)
+      .onSnapshot(snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        err => console.warn('[領地戰] 作答監聽中斷:', err.message));
+  },
+
   /* ---------- 即時監聽 ----------
      回傳 unsubscribe 函式,切換班級或登出時要記得呼叫。 */
 

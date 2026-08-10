@@ -14,6 +14,7 @@ function switchView(name) {
   if (name === 'shop') renderShopView();
   if (name === 'ai') renderAiView();
   if (name === 'quiz') renderQuizList();
+  if (name === 'territory') renderTerritoryView();
 }
 
 function switchSubTab(parent, subtab) {
@@ -34,6 +35,8 @@ function switchSubTab(parent, subtab) {
   if (subtab === 'shopItems') renderShopItems();
   if (subtab === 'purchases') renderPurchaseList();
   if (subtab === 'tasks') renderTasksList();
+  if (subtab === 'tgBoard') { renderTerritoryBoard(); renderTerritoryFeed(); }
+  if (subtab === 'tgQuestions') renderTerritoryQuestions();
   if (subtab === 'general') renderOverview();
   if (subtab === 'report') renderReportStudentList();
   if (subtab === 'aiComment') renderAiCommentStudentList();

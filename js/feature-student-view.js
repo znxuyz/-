@@ -37,6 +37,7 @@ const StudentApp = {
     await this.refresh();
     this.watch();
     this.watchPurchases();
+    this.watchTerritory();
   },
 
   /* 老師結算兌換後,狀態會即時反映在學生畫面上 */
@@ -142,6 +143,9 @@ const StudentApp = {
         </button>
         <button class="student-tab ${this.tab === 'shop' ? 'active' : ''}"
                 onclick="StudentApp.setTab('shop')">兌換</button>
+        ${this.tGame && this.tGame.status === 'running' ? `
+        <button class="student-tab war ${this.tab === 'war' ? 'active' : ''}"
+                onclick="StudentApp.setTab('war')">領地戰</button>` : ''}
       </nav>
 
       <main class="student-main">
@@ -149,6 +153,7 @@ const StudentApp = {
         ${this.tab === 'rank' ? this.renderRankTab() : ''}
         ${this.tab === 'quiz' ? this.renderQuizTab() : ''}
         ${this.tab === 'shop' ? this.renderShopTab() : ''}
+        ${this.tab === 'war'  ? this.renderWarTab()  : ''}
       </main>
     `;
   },
@@ -584,3 +589,178 @@ const StudentApp = {
     }
   }
 };
+
+/* ============================================
+   學生端:領地佔領戰
+   ────────────────────────────────────────────
+   點一塊可攻擊的地 → 隨機抽一題 → 作答 → 送出。
+   判定在老師端進行,結果透過監聽回來。
+============================================ */
+
+Object.assign(StudentApp, {
+  tGame: null,
+  tQuestions: [],
+  tMyAttempts: [],
+  tTargetHex: null,
+  tQuestion: null,
+  tPickedAnswer: null,
+  unsubTGame: null,
+  unsubTQuestions: null,
+  unsubTAttempts: null,
+
+  watchTerritory() {
+    const cid = this.classInfo.classId;
+
+    if (this.unsubTGame) this.unsubTGame();
+    this.unsubTGame = Cloud.watchTerritoryGame(cid, g => {
+      this.tGame = g;
+      if (this.tab === 'war' && !this.tQuestion) this.render();
+    });
+
+    if (this.unsubTQuestions) this.unsubTQuestions();
+    this.unsubTQuestions = Cloud.watchTerritoryQuestions(cid, qs => { this.tQuestions = qs; });
+
+    if (this.unsubTAttempts) this.unsubTAttempts();
+    this.unsubTAttempts = Cloud.watchMyTerritoryAttempts(cid, Cloud.uid, list => {
+      const before = this.tMyAttempts;
+      this.tMyAttempts = list;
+
+      // 剛送出的那一份被判定了 → 跳出結果
+      const justJudged = list.find(a => {
+        const old = before.find(b => b.id === a.id);
+        return old && old.status === 'pending' && a.status !== 'pending';
+      });
+      if (justJudged) {
+        toast(justJudged.message || '');
+        this.tQuestion = null;
+        this.tTargetHex = null;
+      }
+      if (this.tab === 'war') this.render();
+    });
+  },
+
+  myGroupIdx() {
+    if (!this.tGame || !this.tGame.memberGroup) return null;
+    const g = this.tGame.memberGroup[this.classInfo.studentId];
+    return g == null ? null : g;
+  },
+
+  renderWarTab() {
+    const g = this.tGame;
+    if (!g) {
+      return '<div class="student-empty">老師還沒開始領地戰</div>';
+    }
+    if (g.status !== 'running') {
+      return `${renderStandings(g, this.myGroupIdx())}
+              <div class="student-empty">這一局已經結束了</div>
+              ${renderHexMap(g, {})}`;
+    }
+
+    const groupIdx = this.myGroupIdx();
+    if (groupIdx == null) {
+      return '<div class="student-empty">你不在這一局的任何一組,請找老師確認分組</div>';
+    }
+
+    // 作答中
+    if (this.tQuestion) return this.renderWarQuestion();
+
+    const waiting = this.tMyAttempts.some(a => a.status === 'pending');
+    const targets = Territory.targetsFor(g, groupIdx);
+    const color = GROUP_COLORS[groupIdx % GROUP_COLORS.length];
+
+    return `
+      <div class="war-header" style="border-color:${color}">
+        <div>
+          <div class="war-my-group" style="color:${color}">我是第 ${groupIdx + 1} 組</div>
+          <div class="war-hint">
+            ${waiting
+              ? '⏳ 老師正在批改你剛才的作答…'
+              : `點選<strong>亮起來</strong>的地塊發動攻擊(有 ${targets.size} 格可打)`}
+          </div>
+        </div>
+      </div>
+      ${renderStandings(g, groupIdx)}
+      ${renderHexMap(g, { groupIdx, onClick: waiting ? null : 'StudentApp.attackHex' })}
+      <div class="war-legend">
+        中立地塊需 ${g.threshold} 分 · 別組地塊需 ${g.threshold * Territory.ENEMY_MULTIPLIER} 分 ·
+        ★ 為起始基地,不能被攻佔
+      </div>`;
+  },
+
+  /* 點下地塊 → 隨機抽一題。抽題在學生端做沒關係,
+     因為題目本來就不含答案,判定也在老師端。 */
+  attackHex(hexKey) {
+    if (this.tQuestions.length === 0) { toast('題庫是空的,請找老師'); return; }
+    this.tTargetHex = hexKey;
+    this.tQuestion = this.tQuestions[Math.floor(Math.random() * this.tQuestions.length)];
+    this.tPickedAnswer = null;
+    this.render();
+  },
+
+  cancelWarQuestion() {
+    this.tQuestion = null;
+    this.tTargetHex = null;
+    this.tPickedAnswer = null;
+    this.render();
+  },
+
+  pickWarAnswer(i) {
+    this.tPickedAnswer = i;
+    this.render();
+  },
+
+  renderWarQuestion() {
+    const q = this.tQuestion;
+    const d = DIFFICULTY[q.difficulty] || DIFFICULTY.easy;
+    const cell = this.tGame.map[this.tTargetHex];
+    const required = Territory.requiredFor(this.tGame, this.tTargetHex);
+    const mine = cell.cap[String(this.myGroupIdx())] || 0;
+
+    return `
+      <div class="war-question">
+        <div class="war-q-head">
+          <span class="war-q-diff" style="background:${d.color}">${d.label} · 答對 +${d.points} 佔領分</span>
+          <button class="btn btn-ghost btn-small" onclick="StudentApp.cancelWarQuestion()">放棄</button>
+        </div>
+
+        <div class="war-q-target">
+          攻打目標:${cell.owner === null ? '中立地塊' : '第 ' + (cell.owner + 1) + ' 組的地'}
+          <span class="war-q-progress">目前 ${mine} / ${required} 分</span>
+        </div>
+
+        <div class="war-q-text">${escapeHtml(q.text)}</div>
+
+        ${q.options.map((opt, i) => opt ? `
+          <label class="student-option ${this.tPickedAnswer === i ? 'picked' : ''}"
+                 onclick="StudentApp.pickWarAnswer(${i})">
+            <span class="student-option-letter">${'ABCD'[i]}</span>
+            <span>${escapeHtml(opt)}</span>
+          </label>` : '').join('')}
+
+        <button class="btn btn-primary btn-block btn-large" style="margin-top:14px;"
+                ${this.tPickedAnswer === null ? 'disabled' : ''}
+                onclick="StudentApp.submitWarAnswer()">
+          ${this.tPickedAnswer === null ? '請先選一個答案' : '送 出'}
+        </button>
+      </div>`;
+  },
+
+  async submitWarAnswer() {
+    if (this.tPickedAnswer === null) return;
+    try {
+      await Cloud.createTerritoryAttempt(this.classInfo.classId, Cloud.uid, {
+        studentId: this.classInfo.studentId,
+        studentName: this.classInfo.name,
+        hexKey: this.tTargetHex,
+        questionId: this.tQuestion.id,
+        answer: this.tPickedAnswer
+      });
+      toast('已送出,等待判定…');
+      this.tQuestion = null;
+      this.render();
+    } catch (e) {
+      console.error(e);
+      toast('送出失敗:' + e.message);
+    }
+  }
+});

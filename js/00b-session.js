@@ -77,6 +77,7 @@ const Session = {
     stopWatchingClass();
     if (typeof QuizWatch !== 'undefined') QuizWatch.stopAll();
     if (typeof PurchaseWatch !== 'undefined') PurchaseWatch.stop();
+    if (typeof TerritoryGame !== 'undefined') TerritoryGame.stop();
     if (StudentApp.unsubPurchases) StudentApp.unsubPurchases();
     if (StudentApp.unsub) StudentApp.unsub();
     await Cloud.signOut();
@@ -101,6 +102,7 @@ const Session = {
       classTasks: [],
       shopHistory: [],
       shopItems: [],
+      territoryQuestions: [],
       quizzes: []
     };
     const { id } = await Cloud.createClass(
@@ -131,6 +133,7 @@ const Session = {
 
     watchCurrentClass();
     PurchaseWatch.start();
+    TerritoryGame.start();
 
     // 收進學生自己挑好的守護獸(不擋畫面,收完再重繪)
     applyPendingPetChoices();
@@ -142,6 +145,7 @@ const Session = {
     stopWatchingClass();
     QuizWatch.stopAll();
     PurchaseWatch.stop();
+    TerritoryGame.stop();
     await this.openClass(classId);
   }
 };
@@ -201,6 +205,7 @@ function applyBlobToState(blob) {
   state.classTasks    = blob.classTasks || [];
   state.shopHistory   = blob.shopHistory || [];
   state.shopItems     = blob.shopItems || [];
+  state.territoryQuestions = blob.territoryQuestions || [];
   state.quizzes       = blob.quizzes || [];
   state.selectedStudentId = null;
   state.students.forEach(migrateStudent);
