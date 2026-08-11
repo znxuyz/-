@@ -81,18 +81,21 @@
   margin-left: 8px;
 }
 
-.lg-open   { background: #f0ead9; border: 1px solid var(--paper-shadow); }
-.lg-lock   { background: #4a4740; }
-.lg-battle { background: #f0ead9; border: 2px solid var(--sunset); }
+.lg-open   { background: #e3d9ae; border: 1px solid #b9ad82; }
+.lg-lock   { background: #7d7368; }
+.lg-battle { background: #e3d9ae; border: 2px solid var(--sunset); }
+.lg-sea    { background: #0d181d; }
 
-/* 大地圖要能捲動,否則兩千格縮成一片馬賽克 */
+/* 大地圖要能捲動,否則兩千格縮成一片馬賽克。
+   底色做成深色海面 —— 陸地(暖草色)與未開放(灰藍石板)在上面
+   都很明確,不會像淺底那樣和空地糊在一起。 */
 .hex-map-scroll {
   overflow: auto;
   max-height: 62vh;
   background:
     repeating-linear-gradient(45deg,
-      var(--paper-warm), var(--paper-warm) 12px,
-      #f6f1e5 12px, #f6f1e5 24px);
+      #0d181d, #0d181d 14px,
+      #101d23 14px, #101d23 28px);
 }
 
 .hex-map {

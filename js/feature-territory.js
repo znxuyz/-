@@ -734,13 +734,15 @@ function renderHexMap(config, map, opts) {
     if (!open) {
       return `<g class="hex locked ${selected.has(k) ? 'picked' : ''}"
         ${editing ? `onclick="territoryPick('${k}')"` : ''}>
-        <polygon points="${pts}" fill="#4a4740" />
+        <polygon points="${pts}" fill="#7d7368" stroke="#585047" stroke-width="1.5" />
         <polygon points="${pts}" fill="url(#lockHatch)" />
         ${selected.has(k) ? `<polygon points="${pts}" class="pick-ring" />` : ''}
       </g>`;
     }
 
-    const fill = owned ? GROUP_COLORS[cell.owner % GROUP_COLORS.length] : '#f0ead9';
+    // 已開放但無人佔領的陸地。用暖草色而不是接近背景的米白,
+    // 在深色海面上才看得出「這裡是可以搶的地」。
+    const fill = owned ? GROUP_COLORS[cell.owner % GROUP_COLORS.length] : '#e3d9ae';
 
     let battleMarks = '';
     if (cell.battle) {
@@ -763,8 +765,7 @@ function renderHexMap(config, map, opts) {
                  ${cell.battle ? 'in-battle' : ''} ${selected.has(k) ? 'picked' : ''}"
       ${editing ? `onclick="territoryPick('${k}')"`
                 : (canAttack && o.onClick ? `onclick="${o.onClick}('${k}')"` : '')}>
-      <polygon points="${pts}" fill="${fill}" stroke="#faf7f0" stroke-width="2"
-               ${owned ? '' : 'stroke-dasharray="0"'} />
+      <polygon points="${pts}" fill="${fill}" stroke="#fbf8f0" stroke-width="2" />
       ${cell.isBase ? `<text x="${p.x.toFixed(1)}" y="${(p.y + 6).toFixed(1)}" class="hex-base-mark">★</text>` : ''}
       ${battleMarks}
       ${selected.has(k) ? `<polygon points="${pts}" class="pick-ring" />` : ''}
@@ -790,9 +791,10 @@ function renderHexMap(config, map, opts) {
           <button class="btn btn-accent btn-small" onclick="TerritoryEdit.exit()">完成</button>
         ` : `
           <span class="hex-legend">
-            <span class="lg lg-open"></span>可佔領
+            <span class="lg lg-open"></span>空地
             <span class="lg lg-lock"></span>未開放
             <span class="lg lg-battle"></span>交戰中
+            <span class="lg lg-sea"></span>海洋
           </span>`}
       </div>
       <div class="hex-map-scroll">
@@ -802,7 +804,7 @@ function renderHexMap(config, map, opts) {
             <pattern id="lockHatch" width="7" height="7" patternUnits="userSpaceOnUse"
                      patternTransform="rotate(45)">
               <rect width="7" height="7" fill="rgba(0,0,0,0)" />
-              <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(255,255,255,0.13)" stroke-width="3" />
+              <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(255,255,255,0.22)" stroke-width="3" />
             </pattern>
           </defs>
           ${polys}
