@@ -368,6 +368,3 @@ function renderShopView() {
   if (name === 'purchases') renderPurchaseList();
   if (name === 'tasks') renderTasksList();
 }
-
-/* 相容舊的呼叫點 */
-function renderShop() { renderShopItems(); }

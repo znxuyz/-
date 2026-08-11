@@ -13,12 +13,10 @@ function renderReportStudentList() {
   list.innerHTML = state.students.map(s => {
     const stage = s.pet ? PetEngine.getStage(s.totalPoints) : 0;
     const icon = s.pet ? PetEngine.getIcon(s) : '❓';
-    const accessory = PetEngine.getAccessoryIcon(s);
     return `
       <div class="report-student-card" onclick="showStudentReport('${s.id}')">
         <div class="student-avatar stage-${stage}" style="width:40px;height:40px;font-size:20px;">
           ${icon}
-          ${accessory ? `<span class="pet-accessory" style="font-size:13px;top:-3px;right:-3px;">${accessory}</span>` : ''}
         </div>
         <div class="info">
           <div class="nm">${s.name}</div>
@@ -45,7 +43,6 @@ function buildStudentReport(s) {
   const stage = s.pet ? PetEngine.getStage(s.totalPoints) : 0;
   const species = s.pet ? PET_SPECIES.find(p => p.id === s.pet) : null;
   const icon = s.pet ? PetEngine.getIcon(s) : '❓';
-  const accessory = PetEngine.getAccessoryIcon(s);
   
   // 統計總出席
   let presentDays = 0, absentDays = 0, lateDays = 0, totalDays = 0;
@@ -90,7 +87,7 @@ function buildStudentReport(s) {
   const purchases = state.shopHistory.filter(h => h.studentId === s.id);
   const itemCounts = {};
   purchases.forEach(p => {
-    const item = SHOP_ITEMS.find(i => i.id === p.itemId);
+    const item = findShopItem(p.itemId);
     if (item) itemCounts[item.name] = (itemCounts[item.name] || 0) + 1;
   });
   
@@ -102,7 +99,6 @@ function buildStudentReport(s) {
       <div class="report-hero">
         <div class="report-hero-pet">
           ${icon}
-          ${accessory ? `<span class="pet-accessory" style="font-size:32px;">${accessory}</span>` : ''}
         </div>
         <div class="report-hero-info">
           <div class="name">${s.name}</div>

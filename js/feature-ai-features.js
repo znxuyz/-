@@ -300,7 +300,7 @@ async function runAiAnalyze() {
   const shopData = state.shopHistory
     .filter(h => h.studentId === s.id && h.time >= cutoff)
     .map(h => {
-      const item = SHOP_ITEMS.find(i => i.id === h.itemId);
+      const item = findShopItem(h.itemId);
       return item ? item.name : h.itemId;
     });
   

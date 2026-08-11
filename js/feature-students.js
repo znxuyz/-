@@ -14,7 +14,6 @@ function renderStudentList() {
     const stage = student.pet ? PetEngine.getStage(student.totalPoints) : 0;
     const health = PetEngine.getHealth(student);
     const icon = student.pet ? PetEngine.getIcon(student) : '❓';
-    const accessory = PetEngine.getAccessoryIcon(student);
     const isSelected = student.id === state.selectedStudentId;
     const seatLabel = student.seatNumber ? `<span style="color:var(--ink-muted);font-size:11px;margin-right:4px;">${student.seatNumber}</span>` : '';
     
@@ -22,7 +21,6 @@ function renderStudentList() {
       <li class="student-item ${isSelected ? 'selected' : ''}" onclick="selectStudent('${student.id}')">
         <div class="student-avatar stage-${stage} health-${health}">
           ${icon}
-          ${accessory ? `<span class="pet-accessory" style="font-size:14px;top:-4px;right:-4px;">${accessory}</span>` : ''}
         </div>
         <div class="student-info">
           <div class="student-name">${seatLabel}${student.name}</div>

@@ -12,7 +12,6 @@ function renderProjector() {
     const stage = student.pet ? PetEngine.getStage(student.totalPoints) : 0;
     const health = PetEngine.getHealth(student);
     const icon = student.pet ? PetEngine.getIcon(student) : '❓';
-    const accessory = PetEngine.getAccessoryIcon(student);
     const species = student.pet ? PET_SPECIES.find(p => p.id === student.pet) : null;
     const petLabel = student.petName ? '「' + student.petName + '」' : (species ? STAGE_NAMES[stage] : '尚未選擇');
     
@@ -20,7 +19,6 @@ function renderProjector() {
       <div class="projector-card" data-student-id="${student.id}">
         <div class="projector-pet stage-${stage} health-${health}">
           ${icon}
-          ${accessory ? `<span class="pet-accessory">${accessory}</span>` : ''}
         </div>
         <div class="projector-name">${student.name}</div>
         <div class="projector-pet-name">${petLabel}</div>

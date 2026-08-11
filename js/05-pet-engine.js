@@ -30,10 +30,6 @@ const PetEngine = {
   
   // 計算健康狀態:基於最近被發分的天數
   getHealth(student) {
-    // 護盾保護期(元氣果實)
-    if (student.shieldUntil && student.shieldUntil > Date.now()) {
-      return 'healthy';
-    }
     if (!student.lastPointTime) return 'healthy';
     const daysSince = (Date.now() - student.lastPointTime) / (1000 * 60 * 60 * 24);
     if (daysSince > 7) return 'sick';
@@ -60,23 +56,4 @@ const PetEngine = {
     return STAGE_ICONS[student.pet][this.getStage(student.totalPoints)];
   },
   
-  // 取得配件圖示(若有裝備)
-  getAccessoryIcon(student) {
-    if (!student || !student.equipped || !student.equipped.accessory) return '';
-    if (typeof SHOP_ITEMS === 'undefined') return '';
-    const item = SHOP_ITEMS.find(i => i.id === student.equipped.accessory);
-    return item ? item.icon : '';
-  }
 };
-
-/* ============================================
-   寵物渲染補強:支援配件顯示
-============================================ */
-function renderPetWithAccessory(student, iconStr) {
-  if (!student || !student.equipped || !student.equipped.accessory) {
-    return iconStr;
-  }
-  const accItem = SHOP_ITEMS.find(i => i.id === student.equipped.accessory);
-  if (!accItem) return iconStr;
-  return iconStr + `<span class="pet-accessory">${accItem.icon}</span>`;
-}

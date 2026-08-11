@@ -4,7 +4,7 @@
 const AI = {
   KEY_STORAGE: 'guardian-claude-api-key',
   MODEL_STORAGE: 'guardian-claude-model',
-  DEFAULT_MODEL: 'claude-sonnet-4-6',
+  DEFAULT_MODEL: 'claude-sonnet-5',
   
   hasKey() { return !!localStorage.getItem(this.KEY_STORAGE); },
   getKey() { return localStorage.getItem(this.KEY_STORAGE) || ''; },

@@ -51,8 +51,6 @@ function createStudent(name, index) {
     lastPointTime: null,
     history: [],
     inventory: [],
-    equipped: { accessory: null },
-    shieldUntil: null,
     createdAt: Date.now()
   };
 }
@@ -60,8 +58,6 @@ function createStudent(name, index) {
 /* 確保舊資料具備新欄位(向後相容) */
 function migrateStudent(s) {
   if (!s.inventory) s.inventory = [];
-  if (!s.equipped) s.equipped = { accessory: null };
-  if (s.shieldUntil === undefined) s.shieldUntil = null;
   if (s.currentPoints === undefined) s.currentPoints = s.totalPoints || 0;
   if (s.seatNumber === undefined) s.seatNumber = '';
   if (s.email === undefined) s.email = '';
@@ -107,8 +103,6 @@ function loadDemoData() {
         { time: lastPointTime, points: 2, reason: '完成作業' }
       ] : [],
       inventory: [],
-      equipped: { accessory: null },
-      shieldUntil: null,
       createdAt: now - TWO_WEEKS
     };
   });

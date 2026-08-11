@@ -578,6 +578,10 @@ const Territory = {
     Object.entries(config.bases || {}).forEach(([k, g]) => {
       if (map[k]) { map[k].owner = Number(g); map[k].isBase = true; }
     });
+    // 快照:壓縮過的戰況。從這裡起算,快照之前的事件不必再重播
+    Object.entries(config.snapshot || {}).forEach(([k, g]) => {
+      if (map[k]) map[k].owner = Number(g);
+    });
 
     const log = [];
     // 只追蹤交戰中的格子。地圖上千格時,每筆事件都掃全圖會慢到不能用
@@ -671,6 +675,17 @@ const Territory = {
     return counts
       .map((count, groupIdx) => ({ groupIdx, count }))
       .sort((a, b) => b.count - a.count);
+  },
+
+  /* 把目前的戰況壓成一份快照:每格只留擁有者,交戰中的格子不收
+     (它們還沒結算,壓縮後會從頭開始,這是刻意的取捨 —— 壓縮前
+      老師會先看到提示)。回傳的物件小到可以直接放進設定裡。 */
+  snapshotOf(map) {
+    const snap = {};
+    Object.entries(map).forEach(([k, cell]) => {
+      if (cell.owner !== null && !cell.isBase) snap[k] = cell.owner;
+    });
+    return snap;
   },
 
   /* 畫面用的指紋。地圖上千格時,沒變就不該重繪 */
@@ -948,7 +963,7 @@ async function startTerritoryGame() {
   try {
     await publishTerritoryQuestions();
     await Cloud.clearTerritoryEvents(state.classId);
-    await Cloud.saveTerritoryConfig(state.classId, config);
+    await Cloud.saveTerritoryConfig(state.classId, config);  // config 本身不含 snapshot,等於重置
     toast(`✦ 領地戰開始!${MAP_SHAPES[config.shape].name} ${Territory.cellsOf(config).length} 格,${groups.length} 組`);
   } catch (e) {
     console.error(e);
@@ -1077,6 +1092,11 @@ function renderTerritoryBoard() {
         ? '<button class="btn btn-accent btn-small" onclick="openNextRing()">往外開一圈</button>' : ''}
       ${c.status === 'running' && !TerritoryEdit.active
         ? '<button class="btn btn-ghost btn-small" onclick="TerritoryEdit.enter()">手動開放/封鎖</button>' : ''}
+      ${TerritoryGame.events.length >= COMPACT_SUGGEST_AT
+        ? `<button class="btn btn-accent btn-small" onclick="compactTerritory()"
+             title="作答紀錄已累積 ${TerritoryGame.events.length} 筆,壓縮可加快所有人的載入">
+             壓縮戰況(${TerritoryGame.events.length})</button>`
+        : ''}
       ${c.status === 'running'
         ? '<button class="btn btn-ghost btn-small" onclick="endTerritoryGame()">結束這一局</button>' : ''}
     </div>
@@ -1226,5 +1246,48 @@ async function territoryApplyPick(value) {
   } catch (e) {
     console.error(e);
     toast('儲存失敗:' + e.message);
+  }
+}
+
+/* ============================================
+   壓縮戰況
+   ────────────────────────────────────────────
+   作答事件是這一局的完整歷史,不壓縮的話會一路累積:
+   一學期下來可能上萬筆,而每位學生每次開啟頁面都要把它們全部
+   下載回來重播。壓縮的做法是把當下的戰況存成一份快照放進設定,
+   再刪掉已經反映在快照裡的事件 —— 地圖不變,重播成本歸零。
+
+   代價:正在交戰中的格子會從頭開始,所以壓縮前會先提醒老師。
+============================================ */
+
+const COMPACT_SUGGEST_AT = 600;   // 超過這個事件數就提示老師壓縮
+
+async function compactTerritory() {
+  const c = TerritoryGame.config;
+  if (!c) return;
+
+  const inBattle = Object.values(TerritoryGame.map).filter(x => x.battle).length;
+  const n = TerritoryGame.events.length;
+
+  if (!confirm(
+    `把目前戰況壓縮成快照,並清掉 ${n} 筆作答紀錄?\n\n` +
+    `地圖不會改變,之後載入會快很多。\n` +
+    (inBattle > 0
+      ? `\n注意:目前有 ${inBattle} 格正在交戰,壓縮後這些爭奪會歸零重來。`
+      : '\n目前沒有正在交戰的格子,是壓縮的好時機。')
+  )) return;
+
+  try {
+    toast('壓縮中…');
+    await Cloud.saveTerritoryConfig(state.classId, {
+      ...c,
+      snapshot: Territory.snapshotOf(TerritoryGame.map),
+      compactedAt: Date.now()
+    });
+    await Cloud.clearTerritoryEvents(state.classId);
+    toast(`✦ 已壓縮,清掉 ${n} 筆紀錄`);
+  } catch (e) {
+    console.error(e);
+    toast('壓縮失敗:' + e.message);
   }
 }

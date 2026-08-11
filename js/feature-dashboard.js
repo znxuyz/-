@@ -39,7 +39,6 @@ function renderSelectedStudent() {
   const stage = student.pet ? PetEngine.getStage(student.totalPoints) : 0;
   const health = PetEngine.getHealth(student);
   const icon = student.pet ? PetEngine.getIcon(student) : '❓';
-  const accessory = PetEngine.getAccessoryIcon(student);
   const species = student.pet ? PET_SPECIES.find(p => p.id === student.pet) : null;
   const next = PetEngine.getNextStageInfo(student.totalPoints);
   const petLabel = student.petName ? `「${student.petName}」 · ` : '';
@@ -48,14 +47,13 @@ function renderSelectedStudent() {
     <div class="selected-display">
       <div class="selected-pet-large stage-${stage} health-${health}">
         ${icon}
-        ${accessory ? `<span class="pet-accessory" style="font-size:38px;top:-4px;right:-4px;">${accessory}</span>` : ''}
       </div>
       <div class="selected-info">
         <div class="selected-name">${student.name}</div>
         <div class="selected-species">
           ${petLabel}${species ? species.name + ' · ' + STAGE_NAMES[stage] : '尚未選擇守護獸'}
           ${health === 'mild' ? ' · 微恙' : health === 'sick' ? ' · 生病了' : ''}
-          ${student.shieldUntil && student.shieldUntil > Date.now() ? ' · 元氣護盾中' : ''}
+
         </div>
         <div class="selected-stats">
           <div class="stat-block">
