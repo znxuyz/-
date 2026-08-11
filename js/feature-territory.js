@@ -407,13 +407,16 @@ const Territory = {
     const seed = opts.seed || (Date.now() % 2147483647);
     const cells = MAP_SHAPES[shape].build(radius, seed);
 
-    const depth = this.computeDepth(cells);
-    const maxDepth = Math.max(...Object.values(depth));
-
+    // 挑基地時用「離地圖邊界幾步」,基地才會落在外圍
+    const borderDepth = this.computeDepth(cells);
     const bases = {};
-    this.pickStarts(cells, depth, groups.length).forEach((key, i) => {
+    this.pickStarts(cells, borderDepth, groups.length).forEach((key, i) => {
       if (key) bases[key] = i;
     });
+
+    // 開放範圍則用「離最近基地幾步」
+    const baseDist = this.computeBaseDist(cells, Object.keys(bases));
+    const maxDepth = Math.max(...Object.values(baseDist));
 
     const memberGroup = {};
     groups.forEach((members, i) => {
@@ -468,11 +471,45 @@ const Territory = {
     return depth;
   },
 
-  /* 深度表每次重播都要用,但只跟形狀有關,算一次就好 */
+  /* ---------- 離最近基地幾步 ----------
+     開放範圍是從各組的起始基地往外擴散,不是從地圖外緣往內。
+     從地圖邊緣開放的話,基地靠邊的組一開始就有一大片空地可拿,
+     靠內陸的組卻無處可去 —— 不公平。從基地擴散則每一組
+     在每個階段能碰到的格子數大致相同。 */
+
+  computeBaseDist(cells, baseKeys) {
+    const set = new Set(cells);
+    const dist = {};
+    const queue = [];
+
+    baseKeys.forEach(k => {
+      if (set.has(k)) { dist[k] = 0; queue.push(k); }
+    });
+
+    for (let i = 0; i < queue.length; i++) {
+      const k = queue[i];
+      const { q, r } = Hex.parse(k);
+      Hex.neighbors(q, r).forEach(n => {
+        if (set.has(n) && dist[n] === undefined) {
+          dist[n] = dist[k] + 1;
+          queue.push(n);
+        }
+      });
+    }
+
+    // 走不到的格子(理論上不該有,連通修復已經處理過)當成最遠
+    let max = 0;
+    Object.values(dist).forEach(d => { if (d > max) max = d; });
+    cells.forEach(k => { if (dist[k] === undefined) dist[k] = max + 1; });
+
+    return dist;
+  },
+
+  /* 距離表每次重播都要用,但只跟地圖與基地有關,算一次就好 */
   depthOf(config) {
-    const key = `${config.shape}_${config.radius}_${config.seed}`;
+    const key = `${config.shape}_${config.radius}_${config.seed}_${Object.keys(config.bases || {}).join()}`;
     if (this._depthCache && this._depthCache.key === key) return this._depthCache.depth;
-    const depth = this.computeDepth(this.cellsOf(config));
+    const depth = this.computeBaseDist(this.cellsOf(config), Object.keys(config.bases || {}));
     this._depthCache = { key, depth };
     return depth;
   },
@@ -517,7 +554,7 @@ const Territory = {
     const ov = config.overrides && config.overrides[hexKey];
     if (ov === true) return true;
     if (ov === false) return false;
-    return depth < this.openDepthAt(config, atTime);
+    return depth <= this.openDepthAt(config, atTime);
   },
 
   nextStageAt(config) {
@@ -931,7 +968,7 @@ async function openNextRing() {
   if (!c) return;
   const depth = Math.min(c.maxDepth + 1, (c.openDepth || 1) + 1);
   await Cloud.saveTerritoryConfig(state.classId, { ...c, openDepth: depth });
-  toast(`已開放到第 ${depth} 層`);
+  toast(`已開放到基地外第 ${depth} 圈`);
 }
 
 /* ============================================
@@ -1030,12 +1067,12 @@ function renderTerritoryBoard() {
             ${Object.keys(TerritoryGame.map).length} 格 · 門檻 ${c.threshold} 分 ·
             爭奪 ${c.battleSeconds} 秒</span>
       <span class="territory-stage">
-        開放 ${depth}/${c.maxDepth + 1} 階段${
-          nextAt ? ` · 下一階段 ${formatCountdown(nextAt - Date.now())}` : ' · 已全部開放'}
+        基地外 ${depth}/${c.maxDepth} 圈${
+          nextAt ? ` · 下一圈 ${formatCountdown(nextAt - Date.now())}` : ' · 已全部開放'}
       </span>
       <div style="flex:1"></div>
       ${c.stageMode === 'manual' && depth <= c.maxDepth
-        ? '<button class="btn btn-accent btn-small" onclick="openNextRing()">開放下一層</button>' : ''}
+        ? '<button class="btn btn-accent btn-small" onclick="openNextRing()">往外開一圈</button>' : ''}
       ${c.status === 'running' && !TerritoryEdit.active
         ? '<button class="btn btn-ghost btn-small" onclick="TerritoryEdit.enter()">手動開放/封鎖</button>' : ''}
       ${c.status === 'running'

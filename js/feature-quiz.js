@@ -474,7 +474,14 @@ function renderQuizEditor(quiz) {
 
   return `<div class="quiz-editor">
     ${questions}
-    <button class="btn btn-ghost btn-block btn-small" onclick="addQuestion('${quiz.id}')">＋ 新增題目</button>
+    <div class="quiz-editor-actions">
+      <button class="btn btn-ghost btn-small" onclick="addQuestion('${quiz.id}')">＋ 新增題目</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-small"
+              onclick="QuestionImport.downloadTemplate('quiz')">⤓ 下載 Excel 範本</button>
+      <button class="btn btn-ghost btn-small"
+              onclick="importQuizQuestionsFromExcel('${quiz.id}')">📊 從 Excel 匯入題目</button>
+    </div>
   </div>`;
 }
 

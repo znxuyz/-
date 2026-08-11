@@ -244,3 +244,236 @@ function showImportTemplateHint() {
     '專案資料夾中有「學生資料範本.xlsx」可直接編輯使用。'
   );
 }
+
+/* ============================================
+   題庫 Excel 匯入
+   ────────────────────────────────────────────
+   領地戰與一般測驗共用同一份解析,只是欄位用到的不同:
+     題目 | 選項A | 選項B | 選項C | 選項D | 正確答案 | 難度 | 題型
+
+   · 正確答案:填 A/B/C/D,或 1/2/3/4;是非題填 O/X
+   · 難度:簡單/普通/困難(只有領地戰會用到)
+   · 題型:選擇/是非/簡答(只有一般測驗會用到,留空當選擇題)
+============================================ */
+
+const QuestionImport = {
+
+  /* 欄位標題允許多種寫法,老師不必記得一模一樣 */
+  findCol(header, patterns) {
+    return header.findIndex(h => patterns.some(p =>
+      typeof p === 'string' ? h.includes(p) : p.test(h)));
+  },
+
+  parse(rows) {
+    if (!rows || rows.length < 2) return { error: '檔案是空的,或只有標題列' };
+
+    const header = rows[0].map(c => String(c || '').trim());
+    const col = {
+      text:   this.findCol(header, ['題目', '題幹', /question/i]),
+      answer: this.findCol(header, ['正確答案', '答案', /answer/i]),
+      diff:   this.findCol(header, ['難度', /difficulty/i]),
+      type:   this.findCol(header, ['題型', '類型', /type/i])
+    };
+
+    // 選項欄位:選項A~D 或 選項1~4,兩種寫法都收
+    const optCols = [];
+    for (let i = 0; i < 4; i++) {
+      const letter = 'ABCD'[i];
+      let idx = this.findCol(header, [`選項${letter}`, `選項${i + 1}`, `${letter}選項`]);
+      if (idx < 0) idx = header.findIndex(h => h === letter || h === String(i + 1));
+      optCols.push(idx);
+    }
+
+    if (col.text < 0) return { error: '找不到「題目」欄位,請確認第一列有「題目」兩個字' };
+    if (col.answer < 0) return { error: '找不到「正確答案」欄位' };
+
+    // 中英文都收,老師從別處複製過來的表格也能直接用
+    const DIFF_MAP = { '簡單': 'easy', '容易': 'easy', '易': 'easy', 'easy': 'easy',
+                       '普通': 'medium', '中等': 'medium', '中': 'medium', 'medium': 'medium',
+                       '困難': 'hard', '難': 'hard', '高': 'hard', 'hard': 'hard' };
+    const TYPE_MAP = { '選擇': 'choice', '選擇題': 'choice', 'choice': 'choice',
+                       '是非': 'truefalse', '是非題': 'truefalse', 'truefalse': 'truefalse',
+                       '簡答': 'short', '簡答題': 'short', '填空': 'short', 'short': 'short' };
+
+    const questions = [];
+    const warnings = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const text = String(row[col.text] || '').trim();
+      if (!text) continue;                       // 空列跳過
+
+      const line = i + 1;
+      const rawAnswer = String(row[col.answer] || '').trim();
+      const type = TYPE_MAP[String(row[col.type] || '').trim().toLowerCase()] || 'choice';
+      const difficulty = DIFF_MAP[String(row[col.diff] || '').trim().toLowerCase()] || 'medium';
+
+      const options = optCols.map(c => c >= 0 ? String(row[c] || '').trim() : '');
+
+      if (type === 'truefalse') {
+        const yes = /^(o|○|v|✓|對|是|正確|true|t|y)$/i.test(rawAnswer);
+        const no  = /^(x|✕|×|錯|否|錯誤|false|f|n)$/i.test(rawAnswer);
+        if (!yes && !no) {
+          warnings.push(`第 ${line} 列:是非題的答案「${rawAnswer}」無法判讀,請填 O 或 X`);
+          continue;
+        }
+        questions.push({ text, type, difficulty, options: [], answer: yes });
+        continue;
+      }
+
+      if (type === 'short') {
+        if (!rawAnswer) { warnings.push(`第 ${line} 列:簡答題沒有填答案`); continue; }
+        questions.push({ text, type, difficulty, options: [], answer: rawAnswer });
+        continue;
+      }
+
+      // 選擇題
+      const filled = options.filter(Boolean).length;
+      if (filled < 2) {
+        warnings.push(`第 ${line} 列「${text.slice(0, 12)}」至少要有兩個選項`);
+        continue;
+      }
+
+      let idx = -1;
+      const m = rawAnswer.toUpperCase().match(/^[ABCD]$/);
+      if (m) idx = 'ABCD'.indexOf(m[0]);
+      else if (/^[1-4]$/.test(rawAnswer)) idx = parseInt(rawAnswer) - 1;
+      else {
+        // 也接受直接把答案內容寫進去
+        idx = options.findIndex(o => o && o === rawAnswer);
+      }
+
+      if (idx < 0 || !options[idx]) {
+        warnings.push(`第 ${line} 列:答案「${rawAnswer}」對不到任何選項,請填 A~D`);
+        continue;
+      }
+
+      questions.push({ text, type: 'choice', difficulty, options, answer: idx });
+    }
+
+    return { questions, warnings };
+  },
+
+  /* 產生範本檔。用 SheetJS 直接在瀏覽器產生,不必另外放檔案在 repo */
+  downloadTemplate(kind) {
+    if (typeof XLSX === 'undefined') { toast('Excel 套件未載入'); return; }
+
+    const isWar = kind === 'territory';
+    const header = isWar
+      ? ['題目', '選項A', '選項B', '選項C', '選項D', '正確答案', '難度']
+      : ['題目', '選項A', '選項B', '選項C', '選項D', '正確答案', '題型'];
+
+    const sample = isWar ? [
+      ['台灣最高的山是哪一座?', '玉山', '雪山', '大霸尖山', '合歡山', 'A', '簡單'],
+      ['9 × 7 = ?', '54', '63', '72', '56', 'B', '普通'],
+      ['光合作用主要在植物的哪個部位進行?', '根', '莖', '葉', '花', 'C', '困難']
+    ] : [
+      ['台灣最高的山是哪一座?', '玉山', '雪山', '大霸尖山', '合歡山', 'A', '選擇'],
+      ['地球是圓的。', '', '', '', '', 'O', '是非'],
+      ['台灣的首都是哪裡?', '', '', '', '', '台北', '簡答']
+    ];
+
+    const notes = [
+      ['填寫說明'],
+      [''],
+      ['【題目】必填。'],
+      ['【選項A~D】選擇題填,是非題與簡答題可留空。至少要有兩個選項。'],
+      ['【正確答案】選擇題填 A/B/C/D 或 1/2/3/4;是非題填 O 或 X;簡答題直接填答案文字。'],
+      isWar
+        ? ['【難度】填 簡單 / 普通 / 困難。決定答對可得幾佔領分(1 / 2 / 3),留空當作普通。']
+        : ['【題型】填 選擇 / 是非 / 簡答,留空當作選擇題。'],
+      [''],
+      ['空白列會自動略過,可以直接在下面繼續加題目。']
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([header, ...sample]);
+    ws['!cols'] = [{ wch: 34 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+                   { wch: 10 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws, '題庫');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(notes), '填寫說明');
+
+    XLSX.writeFile(wb, isWar ? '領地戰題庫範本.xlsx' : '測驗題庫範本.xlsx');
+  }
+};
+
+/* ---------- 領地戰題庫 ---------- */
+
+function importTerritoryQuestionsFromExcel() {
+  ExcelImport.pickFile((rows, filename) => {
+    const result = QuestionImport.parse(rows);
+    if (result.error) { toast(result.error); return; }
+    if (result.questions.length === 0) {
+      toast('沒有讀到任何有效題目');
+      if (result.warnings.length) alert('問題如下:\n\n' + result.warnings.join('\n'));
+      return;
+    }
+
+    const replace = state.territoryQuestions.length > 0 &&
+      confirm(`讀到 ${result.questions.length} 題(來自 ${filename})。\n\n` +
+              `按「確定」= 取代現有的 ${state.territoryQuestions.length} 題\n` +
+              `按「取消」= 附加在現有題庫後面`);
+
+    const imported = result.questions.map((q, i) => ({
+      id: 'tq_' + Date.now() + '_' + i,
+      text: q.text,
+      options: q.options,
+      answer: q.answer,
+      difficulty: q.difficulty,
+      createdAt: Date.now()
+    }));
+
+    state.territoryQuestions = replace
+      ? imported
+      : imported.concat(state.territoryQuestions);
+
+    save();
+    renderTerritoryQuestions();
+    publishTerritoryQuestions();
+    toast(`✦ 已匯入 ${imported.length} 題`);
+
+    if (result.warnings.length) {
+      setTimeout(() => alert(`有 ${result.warnings.length} 列被略過:\n\n` +
+        result.warnings.slice(0, 20).join('\n')), 800);
+    }
+  });
+}
+
+/* ---------- 一般測驗題庫 ---------- */
+
+function importQuizQuestionsFromExcel(quizId) {
+  const quiz = getQuiz(quizId);
+  if (!quiz) return;
+
+  ExcelImport.pickFile((rows, filename) => {
+    const result = QuestionImport.parse(rows);
+    if (result.error) { toast(result.error); return; }
+    if (result.questions.length === 0) {
+      toast('沒有讀到任何有效題目');
+      if (result.warnings.length) alert('問題如下:\n\n' + result.warnings.join('\n'));
+      return;
+    }
+
+    result.questions.forEach((q, i) => {
+      quiz.questions.push({
+        id: 'q_' + Date.now() + '_' + i,
+        type: q.type,
+        text: q.text,
+        // 選擇題固定四個欄位,編輯畫面才不會少格
+        options: q.type === 'choice'
+          ? [q.options[0] || '', q.options[1] || '', q.options[2] || '', q.options[3] || '']
+          : ['', '', '', ''],
+        answer: q.answer
+      });
+    });
+
+    save();
+    renderQuizList();
+    toast(`✦ 已加入 ${result.questions.length} 題到「${quiz.title}」`);
+
+    if (result.warnings.length) {
+      setTimeout(() => alert(`有 ${result.warnings.length} 列被略過:\n\n` +
+        result.warnings.slice(0, 20).join('\n')), 800);
+    }
+  });
+}

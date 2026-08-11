@@ -9,23 +9,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 
 <!-- 樣式表 -->
-<link rel="stylesheet" href="css/base.css?v=20260810f">
-<link rel="stylesheet" href="css/components.css?v=20260810f">
-<link rel="stylesheet" href="css/dashboard.css?v=20260810f">
-<link rel="stylesheet" href="css/tools.css?v=20260810f">
-<link rel="stylesheet" href="css/management.css?v=20260810f">
-<link rel="stylesheet" href="css/contact.css?v=20260810f">
-<link rel="stylesheet" href="css/shop.css?v=20260810f">
-<link rel="stylesheet" href="css/ai.css?v=20260810f">
-<link rel="stylesheet" href="css/report.css?v=20260810f">
-<link rel="stylesheet" href="css/projector.css?v=20260810f">
-<link rel="stylesheet" href="css/settings.css?v=20260810f">
-<link rel="stylesheet" href="css/auth.css?v=20260810f">
-<link rel="stylesheet" href="css/quiz.css?v=20260810f">
-<link rel="stylesheet" href="css/student.css?v=20260810f">
-<link rel="stylesheet" href="css/pet-picker.css?v=20260810f">
-<link rel="stylesheet" href="css/leaderboard.css?v=20260810f">
-<link rel="stylesheet" href="css/territory.css?v=20260810f">
+<link rel="stylesheet" href="css/base.css?v=20260810g">
+<link rel="stylesheet" href="css/components.css?v=20260810g">
+<link rel="stylesheet" href="css/dashboard.css?v=20260810g">
+<link rel="stylesheet" href="css/tools.css?v=20260810g">
+<link rel="stylesheet" href="css/management.css?v=20260810g">
+<link rel="stylesheet" href="css/contact.css?v=20260810g">
+<link rel="stylesheet" href="css/shop.css?v=20260810g">
+<link rel="stylesheet" href="css/ai.css?v=20260810g">
+<link rel="stylesheet" href="css/report.css?v=20260810g">
+<link rel="stylesheet" href="css/projector.css?v=20260810g">
+<link rel="stylesheet" href="css/settings.css?v=20260810g">
+<link rel="stylesheet" href="css/auth.css?v=20260810g">
+<link rel="stylesheet" href="css/quiz.css?v=20260810g">
+<link rel="stylesheet" href="css/student.css?v=20260810g">
+<link rel="stylesheet" href="css/pet-picker.css?v=20260810g">
+<link rel="stylesheet" href="css/leaderboard.css?v=20260810g">
+<link rel="stylesheet" href="css/territory.css?v=20260810g">
 
 <!-- SheetJS for Excel import -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -422,7 +422,7 @@
             <option value="manual">老師手動</option>
           </select>
           <input type="number" id="tgStageSeconds" class="rule-editor-input" value="300" min="30" max="3600" style="width:80px;" title="每隔多久往中心多開一圈" />
-          <label id="tgStageUnit">秒開一圈</label>
+          <label id="tgStageUnit">秒往外一圈</label>
           <div style="flex:1"></div>
           <button class="btn btn-accent" onclick="startTerritoryGame()">開始新的一局</button>
         </div>
@@ -431,11 +431,12 @@
 
         <div class="quiz-mode-hint">
           ✦ 開局前請先到<strong>班級管理 → 隨機分組</strong>分好組,並在<strong>題庫</strong>分頁建立題目。<br>
-          ✦ 各組從外圈的起始基地(★)出發,只能攻打與自己領地<strong>相鄰</strong>的格子。空白地塊與別組的地都可以打。<br>
+          ✦ 各組從起始基地(★)出發,只能攻打與自己領地<strong>相鄰</strong>的格子。空白地塊與別組的地都可以打。<br>
           ✦ 題目難度決定佔領分:簡單 +1、普通 +2、困難 +3。<br>
           ✦ 一塊地被攻擊後展開<strong>爭奪</strong>,時間內分數最高且達到門檻的那一組拿下;同分則無人佔領。<br>
-          ✦ 地圖由外圍往內陸分階段開放,越內陸越晚開。你也可以按「手動開放/封鎖」
-            框選格子,提早開放某片區域或把某些格子封起來當障礙。<br>
+          ✦ 地圖從<strong>各組基地往外</strong>一圈一圈開放,所以每一組每個階段能碰到的
+            格子數大致相同。你也可以按「手動開放/封鎖」框選格子,提早開放某片區域或
+            把某些格子封起來當障礙。<br>
           ✦ 判定由系統依<strong>伺服器時間</strong>自動進行,你不需要一直開著這個頁面。
         </div>
 
@@ -469,6 +470,10 @@
           <div class="tq-form-row">
             <span style="font-size:12px; color:var(--ink-muted);">選左側的圓圈標記正確答案。學生端不會收到答案。</span>
             <div style="flex:1"></div>
+            <button class="btn btn-ghost btn-small" onclick="QuestionImport.downloadTemplate('territory')">
+              ⤓ 下載 Excel 範本</button>
+            <button class="btn btn-ghost btn-small" onclick="importTerritoryQuestionsFromExcel()">
+              📊 從 Excel 匯入</button>
             <button class="btn btn-primary btn-small" onclick="createTerritoryQuestion()">＋ 新增題目</button>
           </div>
         </div>
@@ -903,40 +908,40 @@
 
 
 <!-- 應用程式邏輯(載入順序很重要) -->
-<script src="js/00-firebase.js?v=20260810f"></script>
-<script src="js/00b-session.js?v=20260810f"></script>
-<script src="js/00c-auth-ui.js?v=20260810f"></script>
-<script src="js/01-constants.js?v=20260810f"></script>
-<script src="js/02-state.js?v=20260810f"></script>
-<script src="js/03-storage.js?v=20260810f"></script>
-<script src="js/04-utils.js?v=20260810f"></script>
-<script src="js/05-pet-engine.js?v=20260810f"></script>
-<script src="js/06-ai.js?v=20260810f"></script>
-<script src="js/07-excel.js?v=20260810f"></script>
-<script src="js/10-nav.js?v=20260810f"></script>
-<script src="js/feature-setup.js?v=20260810f"></script>
-<script src="js/feature-students.js?v=20260810f"></script>
-<script src="js/feature-dashboard.js?v=20260810f"></script>
-<script src="js/feature-attendance.js?v=20260810f"></script>
-<script src="js/feature-picker.js?v=20260810f"></script>
-<script src="js/feature-timer.js?v=20260810f"></script>
-<script src="js/feature-seating.js?v=20260810f"></script>
-<script src="js/feature-grouping.js?v=20260810f"></script>
-<script src="js/feature-quiz.js?v=20260810f"></script>
-<script src="js/feature-territory.js?v=20260810f"></script>
-<script src="js/feature-leaderboard.js?v=20260810f"></script>
-<script src="js/feature-student-view.js?v=20260810f"></script>
-<script src="js/feature-contact-book.js?v=20260810f"></script>
-<script src="js/feature-homework.js?v=20260810f"></script>
-<script src="js/feature-shop.js?v=20260810f"></script>
-<script src="js/feature-class-tasks.js?v=20260810f"></script>
-<script src="js/feature-ai-features.js?v=20260810f"></script>
-<script src="js/feature-projector.js?v=20260810f"></script>
-<script src="js/feature-overview.js?v=20260810f"></script>
-<script src="js/feature-report.js?v=20260810f"></script>
-<script src="js/feature-rules.js?v=20260810f"></script>
-<script src="js/feature-settings.js?v=20260810f"></script>
-<script src="js/99-app.js?v=20260810f"></script>
+<script src="js/00-firebase.js?v=20260810g"></script>
+<script src="js/00b-session.js?v=20260810g"></script>
+<script src="js/00c-auth-ui.js?v=20260810g"></script>
+<script src="js/01-constants.js?v=20260810g"></script>
+<script src="js/02-state.js?v=20260810g"></script>
+<script src="js/03-storage.js?v=20260810g"></script>
+<script src="js/04-utils.js?v=20260810g"></script>
+<script src="js/05-pet-engine.js?v=20260810g"></script>
+<script src="js/06-ai.js?v=20260810g"></script>
+<script src="js/07-excel.js?v=20260810g"></script>
+<script src="js/10-nav.js?v=20260810g"></script>
+<script src="js/feature-setup.js?v=20260810g"></script>
+<script src="js/feature-students.js?v=20260810g"></script>
+<script src="js/feature-dashboard.js?v=20260810g"></script>
+<script src="js/feature-attendance.js?v=20260810g"></script>
+<script src="js/feature-picker.js?v=20260810g"></script>
+<script src="js/feature-timer.js?v=20260810g"></script>
+<script src="js/feature-seating.js?v=20260810g"></script>
+<script src="js/feature-grouping.js?v=20260810g"></script>
+<script src="js/feature-quiz.js?v=20260810g"></script>
+<script src="js/feature-territory.js?v=20260810g"></script>
+<script src="js/feature-leaderboard.js?v=20260810g"></script>
+<script src="js/feature-student-view.js?v=20260810g"></script>
+<script src="js/feature-contact-book.js?v=20260810g"></script>
+<script src="js/feature-homework.js?v=20260810g"></script>
+<script src="js/feature-shop.js?v=20260810g"></script>
+<script src="js/feature-class-tasks.js?v=20260810g"></script>
+<script src="js/feature-ai-features.js?v=20260810g"></script>
+<script src="js/feature-projector.js?v=20260810g"></script>
+<script src="js/feature-overview.js?v=20260810g"></script>
+<script src="js/feature-report.js?v=20260810g"></script>
+<script src="js/feature-rules.js?v=20260810g"></script>
+<script src="js/feature-settings.js?v=20260810g"></script>
+<script src="js/99-app.js?v=20260810g"></script>
 
 </body>
 </html>
