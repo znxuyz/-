@@ -122,8 +122,9 @@
   50%      { stroke-opacity: 1; }
 }
 
-/* 未開放:深色石板加斜線紋。和「空白但可打」的米色一眼分得出來 */
-.hex.locked { pointer-events: none; }
+/* 未開放:深色石板加斜線紋。和「空白但可打」的米色一眼分得出來。
+   沒有 onclick 的才擋掉點擊 —— 老師編輯模式下這些格子是可以點的。 */
+.hex.locked:not([onclick]) { pointer-events: none; }
 
 .hex-base-mark {
   text-anchor: middle;
@@ -416,3 +417,29 @@
 
 .war-result.ok { background: rgba(74,124,98,0.16); color: var(--forest); }
 .war-result.no { background: rgba(194,91,78,0.14); color: var(--sick); }
+
+/* ---------- 手動編輯開放區域 ---------- */
+
+.hex-edit-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sunset);
+  margin-left: 8px;
+}
+
+/* 選取框畫在最上層,深色與淺色格子上都看得見 */
+.pick-ring {
+  fill: none;
+  stroke: #2f7fd6;
+  stroke-width: 5;
+  pointer-events: none;
+}
+
+.hex.picked { cursor: pointer; }
+
+/* 編輯模式下連未開放的格子也要能點 */
+.hex-map-wrap .hex.locked.picked,
+.hex-map-tools ~ .hex-map-scroll .hex.locked[onclick] {
+  pointer-events: auto;
+  cursor: pointer;
+}

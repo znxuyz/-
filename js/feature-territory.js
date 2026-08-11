@@ -79,6 +79,36 @@ const Hex = {
   }
 };
 
+/* 世界地圖的輪廓。# 是陸地,. 是海洋。
+   刻意畫得粗略 —— 取樣到六角格之後,細節本來就會消失,
+   保留得出來的是各大洲的相對位置與大小。 */
+const WORLD_ART = [
+  '..........................................................',
+  '.....####.......#####.................############........',
+  '....########...#######..........##..###############.......',
+  '...##########..######..........#################......###.',
+  '...###########.####...........##################.....#####',
+  '....##########................##################......###.',
+  '.....#########...............###################..........',
+  '......########...............####################.........',
+  '.......######.................##################..........',
+  '........#####..........########..###############..........',
+  '.........###...........########..#####...#######..........',
+  '..........#............#########..###.....#####...........',
+  '.........###...........##########.........####............',
+  '........#####..........##########..........##.............',
+  '.......######..........##########.........................',
+  '.......######...........#########.............####........',
+  '......#######............########............########.....',
+  '......######..............#######............#########....',
+  '.....######................######.............#######.....',
+  '.....#####..................#####..............#####......',
+  '.....####....................###................###.......',
+  '.....###......................#...........................',
+  '......#...................................................',
+  '..........................................................'
+];
+
 /* ============================================
    地圖形狀
    ────────────────────────────────────────────
@@ -199,6 +229,36 @@ const MAP_SHAPES = {
 
       const land = base.filter(k => !wall.has(k));
       return MAP_SHAPES._connect(land, base, rand);
+    }
+  },
+
+  world: {
+    name: '世界地圖', desc: '七大洲輪廓,大陸之間以陸橋相連',
+    build(radius) {
+      // 用一張輪廓圖取樣。# 是陸地,. 是海洋。
+      // 解析度固定,再依 radius 縮放到需要的格數。
+      const art = WORLD_ART;
+      const artH = art.length, artW = art[0].length;
+
+      const h = Math.round(radius * 1.15);
+      const w = Math.round(radius * 2.1);
+      const cells = [];
+
+      for (let row = -h; row <= h; row++) {
+        const offset = -Math.floor(row / 2);
+        for (let col = -w; col <= w; col++) {
+          // 把 (col,row) 映到輪廓圖的座標
+          const ax = Math.floor((col + w) / (2 * w + 1) * artW);
+          const ay = Math.floor((row + h) / (2 * h + 1) * artH);
+          const line = art[Math.min(artH - 1, Math.max(0, ay))];
+          if (line[Math.min(artW - 1, Math.max(0, ax))] === '#') {
+            cells.push(Hex.key(offset + col, row));
+          }
+        }
+      }
+
+      // 各大洲本來就分離,補上陸橋才不會有組被困在自己的洲
+      return MAP_SHAPES._connect(cells, cells, seededRandom(1));
     }
   },
 
@@ -370,6 +430,7 @@ const Territory = {
       stageMode: opts.stageMode || 'auto',      // auto = 依倒數自動開放 / manual = 老師手動
       stageSeconds: opts.stageSeconds || 300,   // 自動模式下每階段的間隔
       openDepth: 1,                             // 手動模式用:已開放到第幾層
+      overrides: {},                            // 老師個別指定 { hexKey: true=開放 / false=封鎖 }
       groupCount: groups.length,
       bases, memberGroup,
       status: 'running',
@@ -449,8 +510,14 @@ const Territory = {
     return Math.min(config.maxDepth + 1, 1 + Math.floor(elapsed / config.stageSeconds));
   },
 
-  isOpenDepth(config, d, atTime) {
-    return d < this.openDepthAt(config, atTime);
+  /* 某一格現在開放了嗎?
+     老師個別指定的優先於階段開放 —— 他可以提早開放某片區域,
+     也可以把已經到期的區域鎖起來當禁區。 */
+  isOpenCell(config, hexKey, depth, atTime) {
+    const ov = config.overrides && config.overrides[hexKey];
+    if (ov === true) return true;
+    if (ov === false) return false;
+    return depth < this.openDepthAt(config, atTime);
   },
 
   nextStageAt(config) {
@@ -487,7 +554,7 @@ const Territory = {
       if (!cell) return;                                          // 不存在的格子
       if (cell.isBase) return;                                    // 基地不可攻佔
       if (cell.owner === ev.groupIdx) return;                     // 自己的地不用打
-      if (!this.isOpenDepth(config, cell.depth, at)) return;      // 還沒開放的區域
+      if (!this.isOpenCell(config, ev.hexKey, cell.depth, at)) return;  // 還沒開放
       if (!this.adjacentTo(map, ev.hexKey, ev.groupIdx)) return;  // 必須與自己領地相鄰
 
       if (!cell.battle) {
@@ -552,7 +619,7 @@ const Territory = {
       Hex.neighbors(q, r).forEach(n => {
         const t = map[n];
         if (!t || t.owner === groupIdx || t.isBase) return;
-        if (!this.isOpenDepth(config, t.depth, now)) return;
+        if (!this.isOpenCell(config, n, t.depth, now)) return;
         targets.add(n);
       });
     });
@@ -571,7 +638,8 @@ const Territory = {
 
   /* 畫面用的指紋。地圖上千格時,沒變就不該重繪 */
   signature(config, map, now) {
-    const parts = [this.openDepthAt(config, now || Date.now())];
+    const parts = [this.openDepthAt(config, now || Date.now()),
+                   JSON.stringify(config.overrides || {})];
     Object.keys(map).forEach(k => {
       const c = map[k];
       if (c.owner !== null) parts.push(k + ':' + c.owner);
@@ -614,20 +682,24 @@ function renderHexMap(config, map, opts) {
 
   const targets = o.groupIdx != null
     ? Territory.targetsFor(config, map, o.groupIdx, now) : new Set();
+  const editing = !!o.editMode;
+  const selected = o.selected || new Set();
 
   const polys = cells.map(k => {
     const cell = map[k];
     const p = pos[k];
-    const open = Territory.isOpenDepth(config, cell.depth, now);
+    const open = Territory.isOpenCell(config, k, cell.depth, now);
     const owned = cell.owner !== null;
     const canAttack = targets.has(k);
     const pts = Hex.corners(p.x, p.y, size);
 
     // 未開放的區域用深色石板 + 斜線紋,和「空白但可打」的淺色明顯區隔
     if (!open) {
-      return `<g class="hex locked">
+      return `<g class="hex locked ${selected.has(k) ? 'picked' : ''}"
+        ${editing ? `onclick="territoryPick('${k}')"` : ''}>
         <polygon points="${pts}" fill="#4a4740" />
         <polygon points="${pts}" fill="url(#lockHatch)" />
+        ${selected.has(k) ? `<polygon points="${pts}" class="pick-ring" />` : ''}
       </g>`;
     }
 
@@ -650,13 +722,15 @@ function renderHexMap(config, map, opts) {
       `<text x="${p.x.toFixed(1)}" y="${(p.y + 5).toFixed(1)}" class="hex-battle-mark">⚔</text>`;
     }
 
-    return `<g class="hex ${canAttack ? 'attackable' : ''} ${cell.isBase ? 'base' : ''}
-                 ${cell.battle ? 'in-battle' : ''}"
-      ${canAttack && o.onClick ? `onclick="${o.onClick}('${k}')"` : ''}>
+    return `<g class="hex ${canAttack && !editing ? 'attackable' : ''} ${cell.isBase ? 'base' : ''}
+                 ${cell.battle ? 'in-battle' : ''} ${selected.has(k) ? 'picked' : ''}"
+      ${editing ? `onclick="territoryPick('${k}')"`
+                : (canAttack && o.onClick ? `onclick="${o.onClick}('${k}')"` : '')}>
       <polygon points="${pts}" fill="${fill}" stroke="#faf7f0" stroke-width="2"
                ${owned ? '' : 'stroke-dasharray="0"'} />
       ${cell.isBase ? `<text x="${p.x.toFixed(1)}" y="${(p.y + 6).toFixed(1)}" class="hex-base-mark">★</text>` : ''}
       ${battleMarks}
+      ${selected.has(k) ? `<polygon points="${pts}" class="pick-ring" />` : ''}
     </g>`;
   }).join('');
 
@@ -670,11 +744,19 @@ function renderHexMap(config, map, opts) {
         <button class="btn btn-ghost btn-small" onclick="territoryZoom(-1)">－</button>
         <span class="hex-zoom-label">${Math.round(zoom * 100)}%</span>
         <button class="btn btn-ghost btn-small" onclick="territoryZoom(1)">＋</button>
-        <span class="hex-legend">
-          <span class="lg lg-open"></span>可佔領
-          <span class="lg lg-lock"></span>未開放
-          <span class="lg lg-battle"></span>交戰中
-        </span>
+        ${editing ? `
+          <span class="hex-edit-count">已選 ${selected.size} 格</span>
+          <button class="btn btn-primary btn-small" onclick="territoryApplyPick(true)">開放選取</button>
+          <button class="btn btn-ghost btn-small" onclick="territoryApplyPick(false)">封鎖選取</button>
+          <button class="btn btn-ghost btn-small" onclick="territoryApplyPick(null)">恢復自動</button>
+          <button class="btn btn-ghost btn-small" onclick="TerritoryEdit.clear()">清除選取</button>
+          <button class="btn btn-accent btn-small" onclick="TerritoryEdit.exit()">完成</button>
+        ` : `
+          <span class="hex-legend">
+            <span class="lg lg-open"></span>可佔領
+            <span class="lg lg-lock"></span>未開放
+            <span class="lg lg-battle"></span>交戰中
+          </span>`}
       </div>
       <div class="hex-map-scroll">
         <svg class="hex-map" width="${width}" viewBox="${vb.join(' ')}"
@@ -953,12 +1035,18 @@ function renderTerritoryBoard() {
       </span>
       <div style="flex:1"></div>
       ${c.stageMode === 'manual' && depth <= c.maxDepth
-        ? '<button class="btn btn-accent btn-small" onclick="openNextRing()">開放下一圈</button>' : ''}
+        ? '<button class="btn btn-accent btn-small" onclick="openNextRing()">開放下一層</button>' : ''}
+      ${c.status === 'running' && !TerritoryEdit.active
+        ? '<button class="btn btn-ghost btn-small" onclick="TerritoryEdit.enter()">手動開放/封鎖</button>' : ''}
       ${c.status === 'running'
         ? '<button class="btn btn-ghost btn-small" onclick="endTerritoryGame()">結束這一局</button>' : ''}
     </div>
     ${renderStandings(c, TerritoryGame.map)}
-    ${renderHexMap(c, TerritoryGame.map, { zoom: _territoryZoom })}`;
+    ${renderHexMap(c, TerritoryGame.map, {
+        zoom: _territoryZoom,
+        editMode: TerritoryEdit.active,
+        selected: TerritoryEdit.selected
+      })}`;
 }
 
 function renderTerritoryFeed() {
@@ -1029,4 +1117,75 @@ function describeShape() {
   el.innerHTML = `
     <strong>${shape.name}</strong> · ${shape.desc}<br>
     這個組合約 <strong>${count}</strong> 格,預估可玩 <strong>${size.note}</strong>。`;
+}
+
+/* ============================================
+   老師手動編輯開放區域
+   ────────────────────────────────────────────
+   進入編輯模式後,點地圖上的格子加入選取,再一次套用。
+   個別指定會蓋過階段開放 —— 可以提早開放某片區域當獎勵,
+   也可以把某些格子封起來當禁區或障礙。
+============================================ */
+
+const TerritoryEdit = {
+  active: false,
+  selected: new Set(),
+
+  enter() {
+    if (!TerritoryGame.config) { toast('尚未開局'); return; }
+    this.active = true;
+    this.selected.clear();
+    _lastMapSig = null;
+    renderTerritoryBoard();
+    toast('點地圖上的格子選取,可連續點多格');
+  },
+
+  exit() {
+    this.active = false;
+    this.selected.clear();
+    _lastMapSig = null;
+    renderTerritoryBoard();
+  },
+
+  clear() {
+    this.selected.clear();
+    _lastMapSig = null;
+    renderTerritoryBoard();
+  },
+
+  toggle(hexKey) {
+    if (this.selected.has(hexKey)) this.selected.delete(hexKey);
+    else this.selected.add(hexKey);
+    _lastMapSig = null;
+    renderTerritoryBoard();
+  }
+};
+
+function territoryPick(hexKey) {
+  TerritoryEdit.toggle(hexKey);
+}
+
+/* value: true = 強制開放 / false = 強制封鎖 / null = 交還給階段開放 */
+async function territoryApplyPick(value) {
+  const c = TerritoryGame.config;
+  if (!c) return;
+  if (TerritoryEdit.selected.size === 0) { toast('請先選取格子'); return; }
+
+  const overrides = { ...(c.overrides || {}) };
+  TerritoryEdit.selected.forEach(k => {
+    if (value === null) delete overrides[k];
+    else overrides[k] = value;
+  });
+
+  const n = TerritoryEdit.selected.size;
+  TerritoryEdit.selected.clear();
+
+  try {
+    await Cloud.saveTerritoryConfig(state.classId, { ...c, overrides });
+    toast(value === null ? `${n} 格恢復自動開放`
+        : value ? `已開放 ${n} 格` : `已封鎖 ${n} 格`);
+  } catch (e) {
+    console.error(e);
+    toast('儲存失敗:' + e.message);
+  }
 }
