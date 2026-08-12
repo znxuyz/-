@@ -28,7 +28,7 @@
 
 健康機制:超過 3 天沒被關注的學生,寵物會「微恙」;超過 7 天會「生病」。系統會自動把這些孩子列入「需要關心」清單。
 
-**13 個整合功能**
+**老師端**
 
 | 分頁 | 功能 |
 |---|---|
@@ -36,12 +36,43 @@
 | 課堂工具 | 點名出席、抽籤機(可優先抽生病寵物)、計時器 |
 | 聯絡簿 | 今日自動匯整、老師留言、個別備註、可列印 |
 | 班級管理 | 拖曳式座位表、隨機/手動分組 |
-| 商店任務 | 11 種商品(食物/配件/特殊)、班級共同任務 |
+| 線上測驗 | 出題、Excel 一鍵匯入題庫、開放作答、自動批改結算 |
+| 領地佔領戰 | 分組對抗的即時佔領遊戲(見下方) |
+| 獎品商店 | 老師自訂獎品與點數、學生自行兌換、老師確認發放 |
+| 班級任務 | 全班共同目標與獎勵 |
 | AI 助手 | 評語生成、訊息潤飾、行為觀察分析(需自備 API Key) |
 | 投影模式 | 教室大屏全班寵物展示,發分時有動畫 |
 | 積分規則 | 可自訂 |
 | 總覽報表 | 班級概況 + 個人學期成長報告(可列印) |
 | 設定 | 班級資料、Excel 匯入、AI Key、危險區 |
+
+**學生端**(雲端模式,Google 登入後直接進入)
+
+| 分頁 | 功能 |
+|---|---|
+| 我的守護獸 | 自己挑選物種、看進化階段與雙軌積分 |
+| 排行榜 | 前三名頒獎台(台高依分差變化)+ 自己名次;有分組時另有小組榜 |
+| 測驗 | 作答,答對由系統即時判定加分 |
+| 商店 | 用可用積分兌換老師開的獎品 |
+| 領地戰 | 分組後才出現,答題搶格子 |
+
+**線上測驗的兩種計分模式**
+
+- **答對就得分**:每個答對的人都拿到分數,適合個人作業與隨堂練習
+- **前 N 名答對才得分**:搶答用。先後順序由 Firestore 的伺服器時間戳決定,
+  不看學生裝置的時鐘,所以同時大量答對也不會亂序或重複給分。
+
+**領地佔領戰**(分組後才能玩)
+
+蜂窩狀大地圖,各組從自己的基地往外答題擴張。
+
+- **題目與答案老師事先設定好**,誰先答對、誰佔到格子完全由系統判定,老師不必當裁判
+- **難度決定佔領分**,格子要累積到門檻才易主;別組的格子也能打,設定時間內誰積分高誰拿走
+- **8 種地圖形狀**(六角、矩形、環、十字、星、群島、洞窟、世界地圖)× 5 種尺寸,
+  最大 2000 格以上,夠打一整個學年
+- **階段性開放**:從各組初始領地往外一圈一圈開放,也可以由老師框選多個格子手動開放/封鎖
+- 地圖本身不存檔,而是由作答事件依伺服器時間**重播**還原,所以每台裝置看到的戰況一致。
+  事件累積到一定量時,狀態列會出現「壓縮戰況」把目前局面存成快照。
 
 ---
 
@@ -80,15 +111,21 @@ guardian-classroom/
 ├── README.md                            # 你正在看的這份
 ├── assets/
 │   ├── 學生資料範本.xlsx                  # 給老師編輯的學生匯入範本
-│   └── 守護獸_Midjourney提示詞.xlsx       # 自製寵物圖的 MJ 提示詞(8 種 × 4 階段)
+│   └── pets/                           # 自製守護獸圖片(命名規則見該資料夾 README)
 │
 ├── css/                                # 樣式表(依功能分檔)
 │   ├── base.css                        # 設計變數、版面、字型
 │   ├── components.css                  # 按鈕、卡片、表單、對話框
+│   ├── auth.css                        # 登入與班級畫面
 │   ├── dashboard.css                   # 老師後台
 │   ├── tools.css                       # 點名/抽籤/計時器
 │   ├── management.css                  # 座位表/分組
 │   ├── contact.css                     # 聯絡簿/作業
+│   ├── quiz.css                        # 線上測驗
+│   ├── territory.css                   # 領地佔領戰
+│   ├── leaderboard.css                 # 排行榜與頒獎台
+│   ├── student.css                     # 學生端版面
+│   ├── pet-picker.css                  # 學生挑守護獸
 │   ├── shop.css                        # 商店/任務
 │   ├── ai.css                          # AI 助手
 │   ├── projector.css                   # 投影模式
@@ -107,7 +144,7 @@ guardian-classroom/
 │   ├── 04-utils.js                     # 提示訊息等工具函式
 │   ├── 05-pet-engine.js                # 寵物養成核心邏輯
 │   ├── 06-ai.js                        # Anthropic API 呼叫模組
-│   ├── 07-excel.js                     # Excel 匯入(使用 SheetJS)
+│   ├── 07-excel.js                     # Excel 匯入:學生名冊 + 題庫(使用 SheetJS)
 │   ├── 10-nav.js                       # 分頁切換
 │   ├── feature-setup.js                # 初始設定與示範資料
 │   ├── feature-students.js             # 左側學生列表
@@ -120,8 +157,10 @@ guardian-classroom/
 │   ├── feature-contact-book.js         # 聯絡簿
 │   ├── feature-homework.js             # 作業繳交追蹤
 │   ├── feature-quiz.js                 # 線上測驗:出題、開放、批改、結算
-│   ├── feature-student-view.js         # 學生端介面
-│   ├── feature-shop.js                 # 守護獸商店
+│   ├── feature-territory.js            # 領地佔領戰:地圖產生、事件重播、老師控制台
+│   ├── feature-leaderboard.js          # 排行榜與頒獎台動畫
+│   ├── feature-student-view.js         # 學生端介面(守護獸/排行榜/測驗/商店/領地戰)
+│   ├── feature-shop.js                 # 獎品商店(老師上架、學生兌換)
 │   ├── feature-class-tasks.js          # 班級共同任務
 │   ├── feature-ai-features.js          # 三項 AI 功能 + Key 管理
 │   ├── feature-projector.js            # 投影模式
@@ -142,7 +181,9 @@ guardian-classroom/
 |---|---|
 | 換寵物物種(不要台灣特有種,改皮卡丘?) | `js/01-constants.js` 的 `PET_SPECIES` |
 | 改進化所需的積分 | `js/01-constants.js` 的 `STAGE_THRESHOLDS` |
-| 新增/修改商店商品 | `js/feature-shop.js` 開頭的 `SHOP_ITEMS` |
+| 新增/修改預設獎品 | `js/feature-shop.js` 的 `STARTER_SHOP_ITEMS`(平常直接在商店頁編輯就好) |
+| 改領地地圖形狀/尺寸 | `js/feature-territory.js` 的 `MAP_SHAPES` / `MAP_SIZES` |
+| 改題目難度對應的佔領分 | `js/feature-territory.js` 的 `DIFFICULTY` |
 | 改顏色主題 | `css/base.css` 的 `:root` 變數 |
 | 換 AI 模型 / API 設定 | `js/06-ai.js` |
 | 改進度條樣式 | `css/dashboard.css` 的 `.progress-*` |
@@ -153,14 +194,11 @@ guardian-classroom/
 
 預設使用 emoji 顯示寵物(🐻 🐱 🐟...),適合先快速開始用。如果想做出有品味的版本,有兩個做法:
 
-**做法 A:用 Midjourney 生圖**
+**做法 A:放自己的圖**
 
-`assets/守護獸_Midjourney提示詞.xlsx` 內含 32 個提示詞(8 種動物 × 4 階段),都已調好同物種跨階段配色一致。
+把 PNG 存到 `assets/pets/`,命名為 `{物種id}-{stage}.png`,例如 `bear-egg.png`、`bear-baby.png`、`bear-adult.png`、`bear-guardian.png`。完整的 32 個檔名列在 `assets/pets/README.md`。
 
-1. 用 Midjourney 生成後存成 PNG
-2. 命名規則:`{物種id}-{stage}.png`,例如 `bear-egg.png`、`bear-baby.png`...
-3. 存到 `assets/pets/` 資料夾
-4. 修改 `js/05-pet-engine.js` 的 `PetEngine.getIcon` 函式,改為回傳 `<img>` 標籤
+**不用改程式**。系統會自動去找圖,找不到就退回 emoji,所以可以一次只上傳幾張,沒上傳的維持原樣。建議去背存成透明 PNG。
 
 **做法 B:用 emoji 但換主題**
 
@@ -188,8 +226,9 @@ const PET_SPECIES = [
 ### 費用估算
 
 - 充值最低 USD $5
-- Sonnet 4.6(推薦):一次評語約 NT$0.3,一次行為分析約 NT$0.5
+- Sonnet 5(推薦):一次評語約 NT$0.3,一次行為分析約 NT$0.5
 - Haiku 4.5(便宜):一次評語約 NT$0.05
+- Opus 5(最強也最貴):約 Sonnet 的 1.7 倍
 - 一個學期通常用不超過 USD $5
 
 ### 安全提示
@@ -206,18 +245,24 @@ API Key 只存於本機瀏覽器的 localStorage,**不會上傳任何雲端**。
 |---|---|---|
 | 資料存放 | 這台電腦的瀏覽器 | Firebase Firestore |
 | 班級數 | 1 個 | 不限,頂部下拉切換 |
-| 學生登入 | 不支援 | Google 帳號 |
+| 學生登入 | 不支援 | Google 帳號,登入後直接進入自己的班級 |
 | 線上測驗 | 不支援 | 支援,答對自動加分 |
+| 排行榜 / 商店兌換 / 領地戰 | 不支援 | 支援 |
 | 費用 | 免費 | 免費(在 Firebase 免費額度內) |
 
 設定方式見 **[docs/雲端設定指南.md](docs/雲端設定指南.md)**,約 20 分鐘。
 
 **30 位學生同時操作為什麼不會亂?**
 
-關鍵在寫入權責分離:班級資料只有導師寫得動,學生只能寫自己那一份作答文件
-(文件 id 綁定學生帳號 uid)。因此再多人同時交卷也不會互相覆蓋。
-批改在老師端進行,發布給學生的題目不含正確答案。
-權限由 `firestore.rules` 強制執行,不是靠前端擋。
+關鍵在**寫入權責分離**:班級資料只有導師寫得動,學生只能寫「自己那一份」文件
+(作答、兌換、選守護獸、領地事件,文件 id 都綁定學生帳號 uid)。
+因此再多人同時操作,寫入的位置本來就不同,物理上不可能互相覆蓋。
+
+排序一律用 Firestore 的 `serverTimestamp()`,不信任學生裝置的時鐘,搶答才會公平。
+
+發布給學生的題目不含正確答案;領地戰的答案另存一份學生讀不到的文件,
+由 `firestore.rules` 在伺服器端比對後才准許寫入,所以老師不用開著電腦當裁判。
+所有權限都是規則強制執行,不是靠前端擋。
 
 ---
 
@@ -227,7 +272,8 @@ API Key 只存於本機瀏覽器的 localStorage,**不會上傳任何雲端**。
 - 單機模式資料存 localStorage;雲端模式存 Firestore,localStorage 當離線快取
 - 使用 [SheetJS](https://sheetjs.com) 解析 Excel
 - 字型使用 Google Fonts 的 Noto Serif TC + Noto Sans TC
-- 設計上預留了未來接 Firebase 雲端同步的接口(只需替換 `03-storage.js`)
+- Firebase 用 compat SDK 以 `<script>` 載入,**沒有 build 步驟**
+- 領地地圖用固定亂數種子(mulberry32)產生,所以同一個班在每台裝置上看到的地形一致
 
 ### 為什麼是「無框架」?
 

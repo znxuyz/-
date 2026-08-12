@@ -33,6 +33,19 @@
   font-size: 18px;
 }
 
+/* 跨班學生才會出現的切換器,長得要像標題不像表單 */
+.student-class-switch {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed currentColor;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.student-class-switch option { color: var(--ink); }
+
 .student-name {
   font-size: 13px;
   opacity: 0.8;

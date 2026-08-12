@@ -156,26 +156,17 @@ async function gateDeleteClass(classId, className) {
 
 /* ---------- 4. 學生:所屬班級 ---------- */
 
+// 學生登入後直接進畫面,不用選班級。
+// 極少數情況(同一個 email 出現在多個班的名冊)會有多個班,
+// 這時仍然直接進第一個,切換的入口放在學生端頁首,不擋在登入路上。
 function showStudentClassPicker() {
-  // 只有一個班就直接進去,不用多按一次
-  if (state.myClasses.length === 1) {
-    enterStudentView(state.myClasses[0]);
-    return;
-  }
-  const cards = state.myClasses.map(c => `
-    <div class="class-card" onclick='enterStudentView(${JSON.stringify(c)})'>
-      <div class="class-card-name">${escapeHtml(c.className)}</div>
-      <div class="class-card-meta">${escapeHtml(c.name)} · ${escapeHtml(c.seatNumber || '')} 號</div>
-    </div>
-  `).join('');
+  enterStudentView(state.myClasses[0]);
+}
 
-  showGate(`
-    <div class="gate-card gate-card-wide">
-      <div class="gate-title">選擇班級</div>
-      <div class="class-card-grid">${cards}</div>
-      <div class="gate-foot"><a href="#" onclick="Session.signOut(); return false;">登出</a></div>
-    </div>
-  `);
+/* 學生端頁首的班級切換(只有跨班時才會出現) */
+function switchStudentClass(id) {
+  const target = state.myClasses.find(c => c.classId === id);
+  if (target) enterStudentView(target);
 }
 
 /* 學生端主畫面在 feature-student-view.js */

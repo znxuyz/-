@@ -28,6 +28,10 @@ const StudentApp = {
   lastScore: undefined,   // 用來偵測加分,跳出提示
 
   async enter(classInfo) {
+    // 跨班切換時要把上一班的殘留狀態清掉,否則會看到別班的作答畫面
+    this.activeQuiz = null;
+    this.myPurchases = [];
+    this.lastScore = undefined;
     this.classInfo = classInfo;
     hideAllTopViews();
     document.getElementById('studentView').classList.remove('hidden');
@@ -122,7 +126,15 @@ const StudentApp = {
     document.getElementById('studentView').innerHTML = `
       <header class="student-header">
         <div>
-          <div class="student-class">${escapeHtml(this.classInfo.className)}</div>
+          <div class="student-class">${
+            (state.myClasses || []).length > 1
+              ? `<select class="student-class-switch" onchange="switchStudentClass(this.value)">${
+                  state.myClasses.map(c =>
+                    `<option value="${c.classId}" ${c.classId === this.classInfo.classId ? 'selected' : ''}>${escapeHtml(c.className)}</option>`
+                  ).join('')
+                }</select>`
+              : escapeHtml(this.classInfo.className)
+          }</div>
           <div class="student-name">${escapeHtml(this.classInfo.name)}
             ${this.classInfo.seatNumber ? ' · ' + escapeHtml(this.classInfo.seatNumber) + ' 號' : ''}</div>
         </div>
