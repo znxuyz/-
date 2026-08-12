@@ -449,9 +449,12 @@ const Cloud = {
 
   /* 送出一次攻擊。答錯的話會被安全規則擋下來,
      丟出 permission-denied,呼叫端據此判定答錯。 */
+  /* 文件 id 固定為 {uid}_{題目id}:同一題每個人只能答一次。
+     用隨機 id 的話,學生記住答案後可以對同一題重複作答刷分,
+     而且規則擋不住(每一次送出看起來都是合法的新事件)。 */
   async sendTerritoryEvent(classId, uid, payload) {
     await this.db.collection('classes').doc(classId)
-      .collection('tevents').add({
+      .collection('tevents').doc(`${uid}_${payload.questionId}`).set({
         ...payload,
         uid,
         at: firebase.firestore.FieldValue.serverTimestamp()

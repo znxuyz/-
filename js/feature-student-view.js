@@ -33,6 +33,8 @@ const StudentApp = {
     this.myPurchases = [];
     this.lastScore = undefined;
     this._warTabShown = false;
+    this._warSig = null;
+    this.tTried = new Set();
     this.classInfo = classInfo;
     hideAllTopViews();
     document.getElementById('studentView').classList.remove('hidden');
@@ -620,6 +622,8 @@ Object.assign(StudentApp, {
   tResult: null,
   unsubTQuestions: null,
   _warTabShown: false,
+  _warSig: null,
+  tTried: new Set(),      // 這次登入已經作答過的題目(含答錯的)
 
   watchTerritory() {
     // 重播引擎由老師端與學生端共用,這裡只是掛上自己的重繪
@@ -633,12 +637,28 @@ Object.assign(StudentApp, {
         this.render();
         return;
       }
-      if (this.tab === 'war' && !this.tQuestion) this.render();
+      // 重播引擎每秒重算一次(倒數與階段開放靠它),但戰況沒變就不該重畫
+      // 上千格的地圖 —— 那會讓學生正在看的位置一直被打斷。
+      if (this.tab === 'war' && !this.tQuestion) {
+        const sig = TerritoryGame.config
+          ? Territory.signature(TerritoryGame.config, TerritoryGame.map) : 'none';
+        if (sig === this._warSig) { this.tickWarCountdown(); return; }
+        this._warSig = sig;
+        this.render();
+      }
     }, this.classInfo.classId);
 
     if (this.unsubTQuestions) this.unsubTQuestions();
     this.unsubTQuestions = Cloud.watchTerritoryQuestions(
       this.classInfo.classId, qs => { this.tQuestions = qs; });
+  },
+
+  /* 戰況沒變時只更新倒數文字,不動地圖 */
+  tickWarCountdown() {
+    const el = document.getElementById('warCountdown');
+    if (!el || !TerritoryGame.config) return;
+    const nextAt = Territory.nextStageAt(TerritoryGame.config);
+    if (nextAt) el.textContent = formatCountdown(nextAt - Date.now());
   },
 
   myGroupIdx() {
@@ -675,7 +695,7 @@ Object.assign(StudentApp, {
         <div class="war-hint">
           點選<strong>亮起來</strong>的地塊發動攻擊(有 ${targets.size} 格可打)<br>
           ${nextAt
-            ? `下一圈地圖在 <strong>${formatCountdown(nextAt - Date.now())}</strong> 後開放`
+            ? `下一圈地圖在 <strong id="warCountdown">${formatCountdown(nextAt - Date.now())}</strong> 後開放`
             : '地圖已全部開放'}
         </div>
       </div>
@@ -689,10 +709,26 @@ Object.assign(StudentApp, {
       </div>`;
   },
 
+  /* 已經答過的題目不再出現。答過的名單直接從戰況事件推出來,
+     重新整理或換裝置都算數,不靠瀏覽器記憶。 */
+  unusedQuestions() {
+    // 答錯不會留下事件(規則直接擋掉),所以本機也要記一份,
+    // 否則同一題可以一直猜到對為止。
+    const used = new Set([
+      ...(TerritoryGame.events || [])
+        .filter(e => e.uid === Cloud.uid)
+        .map(e => e.questionId),
+      ...this.tTried
+    ]);
+    return this.tQuestions.filter(q => !used.has(q.id));
+  },
+
   attackHex(hexKey) {
     if (this.tQuestions.length === 0) { toast('題庫是空的,請找老師'); return; }
+    const pool = this.unusedQuestions();
+    if (pool.length === 0) { toast('題庫的題目你都答過了,請找老師再出題'); return; }
     this.tTargetHex = hexKey;
-    this.tQuestion = this.tQuestions[Math.floor(Math.random() * this.tQuestions.length)];
+    this.tQuestion = pool[Math.floor(Math.random() * pool.length)];
     this.tPickedAnswer = null;
     this.tResult = null;
     this.render();
@@ -762,6 +798,7 @@ Object.assign(StudentApp, {
 
     const groupIdx = this.myGroupIdx();
     const points = DIFFICULTY[this.tQuestion.difficulty].points;
+    this.tTried.add(this.tQuestion.id);
 
     try {
       await Cloud.sendTerritoryEvent(this.classInfo.classId, Cloud.uid, {

@@ -221,11 +221,15 @@ const PurchaseWatch = {
       pending.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
       for (const p of pending) {
-        const result = this.settle(p);
+        const { result, revert } = this.settle(p);
         try {
           await Cloud.updatePurchase(state.classId, p.id, result);
         } catch (e) {
-          console.error('[Shop] 兌換結算寫回失敗:', e);
+          // 點數已經扣了但申請單還停在 pending —— 不還原的話,
+          // 下一次快照會把同一筆再結算一次,學生等於被扣兩次。
+          console.error('[Shop] 兌換結算寫回失敗,已還原:', e);
+          if (revert) revert();
+          toast('兌換結算寫回失敗,已還原點數');
         }
       }
       save();
@@ -233,28 +237,28 @@ const PurchaseWatch = {
     } finally {
       this.processing = false;
     }
+
+    // 處理期間進來的新申請,它們的快照被上面的鎖擋掉了,這裡補跑一輪。
+    // 只看這一輪沒碰過的,否則寫回一直失敗時會無限重試。
+    const tried = new Set(pending.map(p => p.id));
+    if (this.all.some(p => p.status === 'pending' && !tried.has(p.id))) this.process();
   },
 
-  /* 檢查並實際扣點。回傳要寫回申請單的狀態。 */
+  /* 檢查並實際扣點。
+     回傳 { result: 要寫回申請單的狀態, revert: 寫回失敗時的還原函式 }。 */
   settle(p) {
+    const no = reason => ({ result: { status: 'rejected', reason }, revert: null });
+
     const student = state.students.find(s => s.id === p.studentId);
-    if (!student) {
-      return { status: 'rejected', reason: '找不到這位學生' };
-    }
+    if (!student) return no('找不到這位學生');
 
     const item = findShopItem(p.itemId);
-    if (!item) {
-      return { status: 'rejected', reason: '這項獎品已被移除' };
-    }
-    if (!item.active) {
-      return { status: 'rejected', reason: '這項獎品已下架' };
-    }
-    if (item.stock !== null && item.stock <= 0) {
-      return { status: 'rejected', reason: '獎品已兌換完畢' };
-    }
+    if (!item) return no('這項獎品已被移除');
+    if (!item.active) return no('這項獎品已下架');
+    if (item.stock !== null && item.stock <= 0) return no('獎品已兌換完畢');
     // 以老師端的價格為準,不採用申請單上的 —— 學生送出後老師可能改價
     if (student.currentPoints < item.price) {
-      return { status: 'rejected', reason: `可用積分不足(需要 ${item.price} 分)` };
+      return no(`可用積分不足(需要 ${item.price} 分)`);
     }
 
     student.currentPoints -= item.price;
@@ -263,16 +267,28 @@ const PurchaseWatch = {
     if (!student.inventory) student.inventory = [];
     student.inventory.push(item.id);
 
-    state.shopHistory.push({
+    const record = {
       studentId: student.id,
       itemId: item.id,
       itemName: item.name,
       time: Date.now(),
       price: item.price
-    });
+    };
+    state.shopHistory.push(record);
 
+    const price = item.price;
     toast(`${student.name} 兌換了「${item.name}」`);
-    return { status: 'paid', settledPrice: item.price, settledAt: Date.now() };
+    return {
+      result: { status: 'paid', settledPrice: price, settledAt: Date.now() },
+      revert: () => {
+        student.currentPoints += price;
+        if (item.stock !== null) item.stock += 1;
+        const i = student.inventory.lastIndexOf(item.id);
+        if (i >= 0) student.inventory.splice(i, 1);
+        const h = state.shopHistory.indexOf(record);
+        if (h >= 0) state.shopHistory.splice(h, 1);
+      }
+    };
   },
 
   markDelivered(purchaseId) {

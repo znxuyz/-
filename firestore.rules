@@ -123,6 +123,9 @@ service cloud.firestore {
 
         allow create: if signedIn()
           && request.resource.data.uid == request.auth.uid
+          // 文件 id 綁定「誰 + 哪一題」,同一題每人只能答一次。
+          // 加上 update 一律禁止,學生就無法對記住答案的題目重複刷分。
+          && eventId == request.auth.uid + '_' + request.resource.data.questionId
           // 遊戲要在進行中
           && cfg().status == 'running'
           // 題目必須存在,而且答案要正確

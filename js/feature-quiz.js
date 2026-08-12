@@ -219,6 +219,15 @@ async function runCollect(quiz, quizId, silent) {
   graded.forEach((g, i) => { g.rank = i + 1; });
 
   const isTopN = quiz.scoreMode === 'topN';
+
+  // 前 N 名模式若開了即時計分,會分好幾次結算。名次每次都是就目前所有作答重算,
+  // 但已經發出去的分數收不回來 —— 沒有這個名額上限的話,後來衝上前面的學生
+  // 會再佔一個名額,最後得分人數超過 N 位。
+  const alreadyAwarded = isTopN
+    ? state.students.filter(s => (s.quizResults?.[quizId]?.awarded || 0) > 0).length
+    : 0;
+  let slots = (quiz.topN || 0) - alreadyAwarded;
+
   let newlyAwarded = 0;
   let totalPoints = 0;
   let missedCutoff = 0;
@@ -230,9 +239,10 @@ async function runCollect(quiz, quizId, silent) {
     if (student.quizResults[quizId]) return;   // 已結算過,跳過
 
     // 前 N 名模式:沒答對任何一題就不算進名次,免得零分也佔名額
-    const inTopN = rank <= (quiz.topN || 0) && score > 0;
+    const inTopN = rank <= (quiz.topN || 0) && score > 0 && slots > 0;
     const earns = isTopN ? inTopN : true;
     const points = earns ? score * quiz.pointsPerQuestion : 0;
+    if (isTopN && points > 0) slots--;
 
     student.quizResults[quizId] = {
       score,

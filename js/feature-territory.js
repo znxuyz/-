@@ -710,8 +710,40 @@ const Territory = {
 /* 大地圖有上千格,重繪成本高。指紋沒變就整段跳過。 */
 let _lastMapSig = null;
 
+/* 捲動位置要跨重繪保留。
+   地圖每秒會因為戰況更新而重畫,如果不記住捲動位置,學生一放大想看別的地方
+   就會被彈回原點,根本沒辦法看地圖。
+   重繪的 innerHTML 由呼叫端負責,所以這裡排一個 microtask,等新的 DOM 進去了再還原。
+   捲動幅度也要一起記:縮放後畫布變大變小,用比例還原才會停在同一塊地。 */
+let _hexScroll = { l: 0, t: 0, w: 0, h: 0 };
+let _hexScrollLock = false;
+
+function _hexScrollSave(el) {
+  if (_hexScrollLock) return;
+  _hexScroll = {
+    l: el.scrollLeft, t: el.scrollTop,
+    w: Math.max(1, el.scrollWidth - el.clientWidth),
+    h: Math.max(1, el.scrollHeight - el.clientHeight)
+  };
+}
+
+function _hexScrollRestore() {
+  const el = document.querySelector('.hex-map-scroll');
+  if (!el || (!_hexScroll.l && !_hexScroll.t)) return;
+  const w = Math.max(1, el.scrollWidth - el.clientWidth);
+  const h = Math.max(1, el.scrollHeight - el.clientHeight);
+  _hexScrollLock = true;                       // 還原本身會觸發 onscroll,別讓它蓋掉紀錄
+  el.scrollLeft = (_hexScroll.l / _hexScroll.w) * w;
+  el.scrollTop  = (_hexScroll.t / _hexScroll.h) * h;
+  _hexScrollLock = false;
+}
+
 function renderHexMap(config, map, opts) {
   const o = opts || {};
+  // microtask 通常就緊接在 innerHTML 之後,不會閃;若呼叫端中間有 await
+  // 導致那時 DOM 還沒進去,再用 rAF 補一次。
+  Promise.resolve().then(_hexScrollRestore);
+  requestAnimationFrame(_hexScrollRestore);
   const now = Date.now();
   const size = 26;
   const cells = Object.keys(map);
@@ -812,7 +844,7 @@ function renderHexMap(config, map, opts) {
             <span class="lg lg-sea"></span>海洋
           </span>`}
       </div>
-      <div class="hex-map-scroll">
+      <div class="hex-map-scroll" onscroll="_hexScrollSave(this)">
         <svg class="hex-map" width="${width}" viewBox="${vb.join(' ')}"
              preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -1275,6 +1307,8 @@ async function compactTerritory() {
   if (!confirm(
     `把目前戰況壓縮成快照,並清掉 ${n} 筆作答紀錄?\n\n` +
     `地圖不會改變,之後載入會快很多。\n` +
+    `但「誰答過哪一題」是記在作答紀錄裡的,清掉之後舊題目會重新開放作答。\n` +
+    `建議壓縮前先換一批新題目。\n` +
     (inBattle > 0
       ? `\n注意:目前有 ${inBattle} 格正在交戰,壓縮後這些爭奪會歸零重來。`
       : '\n目前沒有正在交戰的格子,是壓縮的好時機。')
