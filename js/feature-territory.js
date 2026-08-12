@@ -1004,16 +1004,19 @@ const TerritoryGame = {
   log: [],
   onUpdate: null,      // 學生端掛自己的重繪
 
-  start(onUpdate) {
+  // classId 要能外傳:學生端不會設定 state.classId(那是老師端載入班級才有的),
+  // 所以不能沿用 isCloudMode(),否則學生永遠收不到戰況、看不到領地戰分頁。
+  start(onUpdate, classId) {
     this.stop();
-    if (!isCloudMode()) return;
+    const cid = classId || state.classId;
+    if (!Cloud.ready || !Cloud.uid || !cid) return;
     this.onUpdate = onUpdate || null;
 
-    this.unsubConfig = Cloud.watchTerritoryConfig(state.classId, c => {
+    this.unsubConfig = Cloud.watchTerritoryConfig(cid, c => {
       this.config = c;
       this.rebuild();
     });
-    this.unsubEvents = Cloud.watchTerritoryEvents(state.classId, list => {
+    this.unsubEvents = Cloud.watchTerritoryEvents(cid, list => {
       this.events = list;
       this.rebuild();
     });

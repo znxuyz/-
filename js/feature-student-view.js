@@ -32,6 +32,7 @@ const StudentApp = {
     this.activeQuiz = null;
     this.myPurchases = [];
     this.lastScore = undefined;
+    this._warTabShown = false;
     this.classInfo = classInfo;
     hideAllTopViews();
     document.getElementById('studentView').classList.remove('hidden');
@@ -618,12 +619,22 @@ Object.assign(StudentApp, {
   tSubmitting: false,
   tResult: null,
   unsubTQuestions: null,
+  _warTabShown: false,
 
   watchTerritory() {
     // 重播引擎由老師端與學生端共用,這裡只是掛上自己的重繪
+    // 老師開戰/收工時,分頁列本身要跟著出現或消失 —— 不能只在已經站在
+    // 領地戰分頁時才重繪,否則學生會一直看不到那個分頁。
     TerritoryGame.start(() => {
+      const running = !!(TerritoryGame.config && TerritoryGame.config.status === 'running');
+      if (running !== this._warTabShown) {
+        this._warTabShown = running;
+        if (!running && this.tab === 'war') this.tab = 'pet';
+        this.render();
+        return;
+      }
       if (this.tab === 'war' && !this.tQuestion) this.render();
-    });
+    }, this.classInfo.classId);
 
     if (this.unsubTQuestions) this.unsubTQuestions();
     this.unsubTQuestions = Cloud.watchTerritoryQuestions(
