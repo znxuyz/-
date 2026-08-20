@@ -306,6 +306,24 @@ const Cloud = {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
+  /* 學生端要的不只是開放中的測驗 —— 已結束的也要看得到自己的成績,
+     否則老師一按「結束」,學生的答題結果就從畫面上消失了。
+     只取最近幾份,免得一整個學期的測驗全部撈回來。 */
+  async listQuizzesForStudent(classId, recent = 8) {
+    const col = this.db.collection('classes').doc(classId).collection('quizzes');
+    const [openSnap, closedSnap] = await Promise.all([
+      col.where('status', '==', 'open').get(),
+      // 這裡刻意不加 where('status','==','closed') —— 等值加排序要另外建
+      // 複合索引,老師得去 Console 點一次。改成只依時間取最近幾份再自己篩。
+      col.orderBy('createdAt', 'desc').limit(recent).get()
+    ]);
+    const map = new Map();
+    [...openSnap.docs, ...closedSnap.docs]
+      .filter(d => ['open', 'closed'].includes(d.data().status))
+      .forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+    return [...map.values()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  },
+
   /* 學生交卷。文件 id 固定為 quizId__uid,
      所以同一位學生重交也只會蓋掉自己那一份,不影響別人。
 

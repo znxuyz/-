@@ -196,6 +196,15 @@
 
 /* ---------- 即時作答狀態 ---------- */
 
+.quiz-create-hint {
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.9;
+  margin: -8px 0 18px;
+}
+
+.quiz-settle-at { color: var(--sunset); }
+
 .quiz-live-count {
   font-size: 12px;
   color: var(--ink-muted);

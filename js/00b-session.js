@@ -135,6 +135,8 @@ const Session = {
     watchCurrentClass();
     PurchaseWatch.start();
     TerritoryGame.start();
+    // 到了統一結算時間的測驗,老師一開系統就算完,不必先切到測驗分頁
+    QuizWatch.startDueTimer();
 
     // 收進學生自己挑好的守護獸(不擋畫面,收完再重繪)
     applyPendingPetChoices();

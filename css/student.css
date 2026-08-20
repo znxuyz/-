@@ -208,7 +208,66 @@
   color: var(--forest-light);
   font-weight: 600;
   white-space: nowrap;
+  text-align: right;
 }
+
+.student-quiz-done small {
+  display: block;
+  font-weight: 400;
+  color: var(--ink-muted);
+  margin-top: 3px;
+}
+
+/* 成績出來的卡片不再變淡 —— 這時候學生正想看它 */
+.student-quiz-card.done:has(.student-quiz-result) { opacity: 1; }
+
+.student-quiz-main { flex: 1; min-width: 0; }
+
+.student-quiz-score {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--sunset);
+  white-space: nowrap;
+}
+
+/* ---------- 自己的答題結果 ---------- */
+
+.student-quiz-result {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--paper-shadow);
+}
+
+.sqr-line {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
+.sqr-miss { color: var(--ink-muted); font-size: 12px; }
+
+.sqr-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* 一題一格,一眼看得出哪幾題錯 */
+.qmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.qmark.ok   { background: rgba(74, 124, 98, 0.18);  color: var(--forest); }
+.qmark.no   { background: rgba(194, 91, 78, 0.16);  color: var(--sick); }
+.qmark.skip { background: var(--paper-shadow);      color: var(--ink-muted); }
 
 /* ---------- 作答 ---------- */
 

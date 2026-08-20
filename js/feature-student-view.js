@@ -104,7 +104,7 @@ const StudentApp = {
       ? null
       : await Cloud.getMyPetChoice(classId, Cloud.uid);
 
-    this.quizzes = await Cloud.listOpenQuizzes(classId);
+    this.quizzes = await Cloud.listQuizzesForStudent(classId);
 
     // 逐份查自己交過沒 — 開放中的測驗通常不多,這裡的查詢量很小
     this.submissions = {};
@@ -202,23 +202,62 @@ const StudentApp = {
     if (this.quizzes.length === 0) {
       return '<div class="student-empty">目前沒有待作答的測驗</div>';
     }
+    const results = (this.student && this.student.quizResults) || {};
+
     return this.quizzes.map(q => {
       const done = this.submissions[q.id];
+      const r = results[q.id];
+      const waiting = !!q.settleAt && Date.now() < q.settleAt;
+
+      let action;
+      if (r) {
+        action = `<span class="student-quiz-score">+${r.awarded} 分</span>`;
+      } else if (done) {
+        action = `<span class="student-quiz-done">✓ 已交卷${
+          waiting ? '<br><small>' + formatSettleAt(q.settleAt) + ' 公布</small>' : ''}</span>`;
+      } else if (q.status !== 'open') {
+        action = '<span class="student-quiz-done">已結束</span>';
+      } else {
+        action = `<button class="btn btn-accent btn-small"
+                    onclick="StudentApp.openQuiz('${q.id}')">開始作答</button>`;
+      }
+
       return `
       <div class="student-quiz-card ${done ? 'done' : ''}">
-        <div>
+        <div class="student-quiz-main">
           <div class="student-quiz-title">${escapeHtml(q.title)}</div>
           <div class="student-quiz-meta">
             ${q.questions.length} 題${q.dueDate ? ' · 截止 ' + q.dueDate : ''}
             ${q.scoreMode === 'topN' ? ` · 前 ${q.topN} 名得分` : ''}
           </div>
+          ${r ? this.renderMyQuizResult(q, r) : ''}
         </div>
-        ${done
-          ? '<span class="student-quiz-done">✓ 已交卷</span>'
-          : `<button class="btn btn-accent btn-small"
-               onclick="StudentApp.openQuiz('${q.id}')">開始作答</button>`}
+        ${action}
       </div>`;
     }).join('');
+  },
+
+  /* 成績公布後,學生看得到自己每一題的對錯。
+     marks 是老師端批改時存下來的 '1/0/-' 字串,裡面沒有正確答案。 */
+  renderMyQuizResult(quiz, r) {
+    const marks = r.marks || '';
+    const dots = quiz.questions.map((q, i) => {
+      const m = marks[i] || '-';
+      const label = m === '1' ? '✓' : m === '0' ? '✗' : '—';
+      const cls = m === '1' ? 'ok' : m === '0' ? 'no' : 'skip';
+      return `<span class="qmark ${cls}" title="第 ${i + 1} 題">${label}</span>`;
+    }).join('');
+
+    return `
+      <div class="student-quiz-result">
+        <div class="sqr-line">
+          答對 <strong>${r.score}/${r.total}</strong> 題
+          ${quiz.scoreMode === 'topN' && r.rank ? ` · 第 <strong>${r.rank}</strong> 名` : ''}
+          ${r.awarded === 0 && quiz.scoreMode === 'topN'
+            ? ' <span class="sqr-miss">(未進得分名額)</span>' : ''}
+        </div>
+        <div class="sqr-marks">${dots}</div>
+      </div>`;
   },
 
   /* ---------- 分頁:兌換商店 ----------
@@ -594,7 +633,9 @@ const StudentApp = {
         studentName: this.classInfo.name,
         answers: this.draftAnswers
       });
-      toast('✦ 已交卷!老師結算後積分會加到你的守護獸');
+      toast(quiz.settleAt && Date.now() < quiz.settleAt
+        ? `✦ 已交卷!交卷順序已記錄,成績 ${formatSettleAt(quiz.settleAt)} 公布`
+        : '✦ 已交卷!老師結算後積分會加到你的守護獸');
       this.activeQuiz = null;
       await this.refresh();
     } catch (e) {

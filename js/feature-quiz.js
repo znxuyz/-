@@ -28,6 +28,7 @@ function createQuiz() {
 
   const scoreMode = document.getElementById('quizScoreMode').value;
   const topN = parseInt(document.getElementById('quizTopN').value) || 5;
+  const settleRaw = document.getElementById('quizSettleAt').value;
 
   state.quizzes.unshift({
     id: 'qz_' + Date.now(),
@@ -36,6 +37,9 @@ function createQuiz() {
     pointsPerQuestion: pointsPer,
     scoreMode,                // all(答對就得分) / topN(前 N 名得分)
     topN,
+    // 統一結算時間。設了之後,時間到之前一律不批改也不發分,
+    // 學生只會看到「已交卷」。時間到、老師一開系統就自動算完。
+    settleAt: settleRaw ? new Date(settleRaw).getTime() : 0,
     questions: [],
     status: 'draft',          // draft(編輯中) / open(開放作答) / closed(已結束)
     createdAt: Date.now()
@@ -43,9 +47,20 @@ function createQuiz() {
 
   document.getElementById('quizTitle').value = '';
   document.getElementById('quizDueDate').value = '';
+  document.getElementById('quizSettleAt').value = '';
   save();
   renderQuizList();
   toast('測驗已建立,接著新增題目');
+}
+
+/* 今晚 12 點 = 明天 00:00 */
+function setSettleTonight() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(0, 0, 0, 0);
+  const p = n => String(n).padStart(2, '0');
+  document.getElementById('quizSettleAt').value =
+    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T00:00`;
 }
 
 /* 選了「只有前幾名得分」才需要填名額 */
@@ -186,6 +201,14 @@ async function collectQuizResults(quizId, opts) {
   const quiz = getQuiz(quizId);
   if (!quiz) return;
 
+  // 設了統一結算時間就等時間到。這樣搶答不必邊收邊算,
+  // 所有人的名次一次算完,先後仍然以伺服器記下的交卷時間為準。
+  const force = opts && opts.force;
+  if (quiz.settleAt && Date.now() < quiz.settleAt && !force) {
+    if (!silent) toast('還沒到結算時間:' + formatSettleAt(quiz.settleAt));
+    return;
+  }
+
   if (_settling.has(quizId)) return;
   _settling.add(quizId);
   try {
@@ -210,7 +233,8 @@ async function runCollect(quiz, quizId, silent) {
   const graded = submissions.map(sub => ({
     sub,
     student: state.students.find(s => s.id === sub.studentId),
-    score: gradeSubmission(quiz, sub.answers || {})
+    score: gradeSubmission(quiz, sub.answers || {}),
+    marks: markSubmission(quiz, sub.answers || {})
   })).filter(g => g.student);
 
   // 名次:答對多的在前,同分則先交卷的在前。
@@ -233,7 +257,7 @@ async function runCollect(quiz, quizId, silent) {
   let missedCutoff = 0;
 
   graded.forEach(g => {
-    const { student, score, sub, rank } = g;
+    const { student, score, sub, rank, marks } = g;
 
     if (!student.quizResults) student.quizResults = {};
     if (student.quizResults[quizId]) return;   // 已結算過,跳過
@@ -249,6 +273,7 @@ async function runCollect(quiz, quizId, silent) {
       total: quiz.questions.length,
       awarded: points,
       rank,
+      marks,                  // 逐題對錯,學生端用來顯示自己的答題結果
       at: sub.orderAt
     };
 
@@ -282,14 +307,62 @@ async function runCollect(quiz, quizId, silent) {
    打開「即時計分」的話還會自動結算,搶答課堂上不用一直按按鈕。
 ============================================ */
 
+/* 老師不想等到結算時間 */
+async function settleNow(quizId) {
+  const quiz = getQuiz(quizId);
+  if (!quiz) return;
+  if (!confirm(`不等 ${formatSettleAt(quiz.settleAt)},現在就批改並發分?\n\n` +
+               `之後補交的學生要再按一次「收回成績」才會計分。`)) return;
+  quiz.settledDone = true;
+  save();
+  await collectQuizResults(quizId, { force: true });
+  renderQuizList();
+}
+
+/* 結算時間顯示成「8/21 00:00」 */
+function formatSettleAt(ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 const QuizWatch = {
   unsubs: {},          // { quizId: unsubscribe }
   live: {},            // { quizId: [submissions] }
   autoSettle: {},      // { quizId: true } 使用者開啟的即時計分
+  dueTimer: null,
+
+  /* 到了結算時間就自動算完。
+     這是在老師的瀏覽器裡跑的 —— 純前端沒有伺服器可以半夜自己醒來,
+     所以真正的動作發生在「時間已過,而且老師打開了系統」的那一刻。
+     學生在那之前只會看到已交卷,名次與分數都還沒產生。 */
+  checkDue() {
+    if (!isCloudMode()) return;
+    const now = Date.now();
+    (state.quizzes || []).forEach(quiz => {
+      if (!quiz.settleAt || now < quiz.settleAt) return;
+      // 只自動跑一次。之後若有補交,老師按「收回成績」即可 ——
+      // 不留這個記號的話,每分鐘都會再讀一次全班作答,白花額度。
+      if (quiz.settledDone) return;
+      quiz.settledDone = true;
+      collectQuizResults(quiz.id, { silent: true }).then(() => {
+        save();
+        renderQuizList();
+        toast(`✦ 測驗「${quiz.title}」已到結算時間,成績已公布`);
+      });
+    });
+  },
+
+  startDueTimer() {
+    if (this.dueTimer) return;
+    this.checkDue();
+    this.dueTimer = setInterval(() => this.checkDue(), 60 * 1000);
+  },
 
   /* 依目前的測驗狀態,同步該訂閱誰、該退訂誰 */
   sync() {
     if (!isCloudMode()) return;
+    this.startDueTimer();
 
     const open = state.quizzes.filter(q => q.status === 'open').map(q => q.id);
 
@@ -320,6 +393,7 @@ const QuizWatch = {
   stopAll() {
     Object.keys(this.unsubs).forEach(id => this.stop(id));
     this.autoSettle = {};
+    if (this.dueTimer) { clearInterval(this.dueTimer); this.dueTimer = null; }
   },
 
   /* 只更新那一行數字,不重繪整個列表 —— 老師正在打字時不會被打斷 */
@@ -342,6 +416,25 @@ const QuizWatch = {
     }
   }
 };
+
+/* 逐題批改,回傳一串 '1'(對) / '0'(錯) / '-'(沒作答)。
+   存進學生的成績紀錄後,學生自己看得到每一題的對錯,
+   但正確答案不會出現在裡面。 */
+function markSubmission(quiz, answers) {
+  return quiz.questions.map(q => {
+    const given = answers[q.id];
+    if (given === undefined || given === null || given === '') return '-';
+
+    if (q.type === 'choice') {
+      return Number(given) === Number(q.answer) ? '1' : '0';
+    }
+    if (q.type === 'truefalse') {
+      return Boolean(given) === Boolean(q.answer) ? '1' : '0';
+    }
+    const norm = v => String(v).trim().replace(/\s+/g, '').toLowerCase();
+    return norm(given) === norm(q.answer) ? '1' : '0';
+  }).join('');
+}
 
 /* 批改一份作答,回傳答對題數 */
 function gradeSubmission(quiz, answers) {
@@ -382,6 +475,7 @@ function renderQuizList() {
   el.innerHTML = state.quizzes.map(quiz => {
     const submitted = state.students.filter(s => s.quizResults && s.quizResults[quiz.id]).length;
     const statusLabel = { draft: '編輯中', open: '開放作答', closed: '已結束' }[quiz.status];
+    const waiting = !!quiz.settleAt && Date.now() < quiz.settleAt;   // 等統一結算中
 
     return `
     <div class="quiz-card quiz-${quiz.status}">
@@ -394,6 +488,11 @@ function renderQuizList() {
                 ? `<strong>前 ${quiz.topN} 名得分</strong>`
                 : '答對就得分'}
             ${quiz.dueDate ? ' · 截止 ' + quiz.dueDate : ''}
+            ${quiz.settleAt
+              ? ` · <strong class="quiz-settle-at">${Date.now() < quiz.settleAt
+                    ? '⏳ ' + formatSettleAt(quiz.settleAt) + ' 統一結算'
+                    : '已於 ' + formatSettleAt(quiz.settleAt) + ' 結算'}</strong>`
+              : ''}
             · 已結算 ${submitted}/${state.students.length} 人
           </div>
         </div>
@@ -404,12 +503,16 @@ function renderQuizList() {
             : ''}
           ${quiz.status === 'open'
             ? `<span id="liveCount_${quiz.id}" class="quiz-live-count">連線中…</span>
-               <label class="quiz-auto-toggle" title="學生交卷後自動結算,不用一直按收回成績">
-                 <input type="checkbox" ${QuizWatch.autoSettle[quiz.id] ? 'checked' : ''}
-                        onchange="QuizWatch.toggleAuto('${quiz.id}')" />
-                 即時計分
-               </label>
-               <button class="btn btn-primary btn-small" onclick="collectQuizResults('${quiz.id}')">收回成績</button>
+               ${waiting
+                 ? `<button class="btn btn-ghost btn-small"
+                      onclick="settleNow('${quiz.id}')"
+                      title="不等結算時間,現在就批改發分">提前結算</button>`
+                 : `<label class="quiz-auto-toggle" title="學生交卷後自動結算,不用一直按收回成績">
+                      <input type="checkbox" ${QuizWatch.autoSettle[quiz.id] ? 'checked' : ''}
+                             onchange="QuizWatch.toggleAuto('${quiz.id}')" />
+                      即時計分
+                    </label>
+                    <button class="btn btn-primary btn-small" onclick="collectQuizResults('${quiz.id}')">收回成績</button>`}
                <button class="btn btn-ghost btn-small" onclick="closeQuiz('${quiz.id}')">結束</button>`
             : ''}
           ${quiz.status === 'closed'
