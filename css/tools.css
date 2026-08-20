@@ -186,8 +186,11 @@
   position: relative;
 }
 
+/* align-items 一定要寫。少了它,60px 的側邊鈕會靠齊 70px 主鈕的上緣,
+   整排看起來就是歪的。 */
 .timer-controls {
   display: flex;
+  align-items: center;
   gap: 14px;
   justify-content: center;
   position: relative;
@@ -206,6 +209,26 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s var(--ease-out);
+  padding: 0;
+  line-height: 1;
+}
+
+/* 圖示用 SVG 畫,不用 ▶ ⏸ ↻ 這些字元 ——
+   字元的左右留白各家字型都不一樣,放進圓圈裡不會正,
+   ⏸ 在部分系統還會被當成彩色 emoji。 */
+.timer-control-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.timer-control-btn.primary svg { width: 28px; height: 28px; }
+
+.timer-btn-text {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.02em;
 }
 
 .timer-control-btn:hover {

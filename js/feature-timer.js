@@ -43,8 +43,21 @@ function updateTimerDisplay() {
     document.getElementById('timerLabel').textContent = '準備計時';
   }
   
-  document.getElementById('timerToggleBtn').textContent = state.timer.running ? '⏸' : '▶';
+  document.getElementById('timerToggleBtn').innerHTML =
+    state.timer.running ? TIMER_ICON.pause : TIMER_ICON.play;
 }
+
+/* 播放三角形刻意往右挪一點點(7→20,中心 13.5 而非 12)。
+   三角形的重心偏左,幾何置中反而看起來偏左,這是圖示的慣例做法。 */
+const TIMER_ICON = {
+  play: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+           <path d="M7 4.5 20 12 7 19.5Z" />
+         </svg>`,
+  pause: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="7" y="5" width="4" height="14" rx="1.2" />
+            <rect x="13" y="5" width="4" height="14" rx="1.2" />
+          </svg>`
+};
 
 function toggleTimer() {
   if (state.timer.running) {
