@@ -13,9 +13,30 @@
   margin-bottom: 20px;
 }
 
-.quiz-create-form input[type="text"] { flex: 2; min-width: 220px; }
-.quiz-create-form input[type="date"] { flex: 1; min-width: 140px; }
-.quiz-create-form input[type="number"] { width: 110px; }
+/* 欄位有標籤,所以要靠底部對齊,按鈕才會和輸入框在同一條線上 */
+.quiz-create-form { align-items: flex-end; }
+
+.quiz-create-form > input[type="text"] { flex: 2; min-width: 220px; }
+.quiz-create-form > select { align-self: flex-end; }
+
+/* 一個欄位 = 標籤在上、輸入框在下。
+   原本這幾格只有 placeholder,但有預設值時 placeholder 根本不會顯示,
+   老師看到的就是一個沒有說明的數字框。 */
+.quiz-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quiz-field-label {
+  font-size: 11px;
+  color: var(--ink-muted);
+  letter-spacing: 0.03em;
+}
+
+.quiz-field input { width: 100%; }
+.quiz-field input[type="date"] { min-width: 150px; }
+.quiz-field input[type="datetime-local"] { min-width: 200px; }
 
 .quiz-card {
   background: var(--paper);

@@ -66,7 +66,7 @@ function setSettleTonight() {
 /* 選了「只有前幾名得分」才需要填名額 */
 function toggleTopNInput() {
   const mode = document.getElementById('quizScoreMode').value;
-  document.getElementById('quizTopN').style.display = mode === 'topN' ? '' : 'none';
+  document.getElementById('quizTopNField').style.display = mode === 'topN' ? '' : 'none';
 }
 
 function getQuiz(quizId) {
