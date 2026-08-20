@@ -93,17 +93,34 @@ body {
   font-size: 18px;
 }
 
+.brand { flex-shrink: 0; }
+.brand-mark { white-space: nowrap; }
+
 .brand-tagline {
+  white-space: nowrap;
   font-size: 12px;
   color: var(--moss);
   letter-spacing: 0.2em;
   font-weight: 300;
 }
 
+/* 12 個分頁在 13 吋筆電上放不下。不換行、改成可橫向捲動 ——
+   換行會把「老師後台」拆成兩行,標題列整個垮掉。 */
 .nav-tabs {
   display: flex;
+  align-items: center;
   gap: 4px;
+  /* flex:1 + min-width:0 缺一不可 —— 少了就會撐開頁首,
+     把右邊的班級標籤擠到分頁上面 */
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+  margin: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+
+.nav-tabs::-webkit-scrollbar { display: none; }
 
 .nav-tab {
   background: transparent;
@@ -117,6 +134,8 @@ body {
   border-radius: 4px;
   transition: all 0.25s var(--ease-out);
   letter-spacing: 0.05em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-tab:hover {
@@ -139,6 +158,8 @@ body {
   border-radius: 20px;
   font-size: 13px;
   color: var(--paper-warm);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .class-badge-name {
@@ -366,4 +387,28 @@ body {
 .pet-emoji {
   display: inline-block;
   line-height: 1;
+}
+
+/* 12 個分頁在 1500px 以下會塞不進標題列。
+   與其讓它橫向捲動(捲動條在標題列上很難發現),不如收緊字距與內距。 */
+@media (max-width: 1680px) {
+  /* 副標最先犧牲 —— 它只是裝飾,分頁是功能 */
+  .brand-tagline { display: none; }
+  .nav-tab { padding: 8px 12px; letter-spacing: 0.02em; }
+  .nav-tabs { margin: 0 12px; }
+}
+
+@media (max-width: 1400px) {
+  .app-header { padding: 12px 20px; }
+  .nav-tab { padding: 7px 9px; font-size: 13px; letter-spacing: 0; }
+  .nav-tabs { gap: 2px; margin: 0 8px; }
+}
+
+@media (max-width: 1180px) {
+  /* 再窄就真的放不下了,改成橫向捲動並在右緣留一道漸層提示還有內容 */
+  .nav-tabs {
+    justify-content: flex-start;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  }
 }

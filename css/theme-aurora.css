@@ -1,0 +1,335 @@
+/* ============================================
+   Aurora — 精密儀器風格主題
+   ────────────────────────────────────────────
+   掛在 <html data-theme="aurora"> 上,所以隨時可以切回原本的紙感版本。
+   做法是覆寫 base.css 的設計變數,再補上少數結構性的細節。
+
+   方向不是「深色霓虹」,而是「精密儀器」:
+   · 冷灰底 + 髮絲級細線,不用陰影堆疊層次
+   · 單一電光藍當重點色,金色只留給成就
+   · 數字一律等寬,不會跳動
+   · 圓角收小,線條收細 —— 精準感來自克制,不是來自特效
+   深色面板(頁首、計時器、投影)保留,並做得更深、更有玻璃感。
+============================================ */
+
+html[data-theme="aurora"] {
+  /* 深色面板 —— 近黑的藍,不是綠 */
+  --forest-deep:  #0a1020;
+  --forest:       #2f4bd8;   /* 主要動作與標題 */
+  --forest-light: #4f6bf0;
+  --moss:         #7c8aa8;
+
+  /* 表面 —— 冷灰,不帶暖黃 */
+  --paper:        #ffffff;
+  --paper-warm:   #eef1f6;
+  --paper-shadow: #dde3ec;
+
+  /* 文字 */
+  --ink:       #0b1220;
+  --ink-soft:  #47536b;
+  /* 4.59:1 —— 這是次要文字用了 68 次的顏色,再淡一階就不合格了 */
+  --ink-muted: #6b7688;
+
+  /* 點綴 */
+  /* 金色當底色時用 --gold,當文字時用 --gold-ink(白底 4.9:1) */
+  --gold:         #b78b2a;
+  --gold-ink:     #8f6b1c;
+  --sunset:       #e0552f;
+  --sunset-light: #f2a58a;
+  --plum:         #7b4ad1;
+  --sky:          #1d84c9;
+
+  --healthy: #14876b;
+  --mild:    #c98a12;
+  --sick:    #c4392e;   /* 白底 5.29、面板底 4.67,危險區的字才讀得清楚 */
+
+  /* 陰影收乾淨,層次靠細線不靠糊影 */
+  --shadow-sm: 0 1px 2px rgba(11, 18, 32, 0.05);
+  --shadow-md: 0 2px 6px rgba(11, 18, 32, 0.07);
+  --shadow-lg: 0 14px 40px rgba(11, 18, 32, 0.12);
+
+  /* 這個主題自己的補充變數 */
+  --hairline:  rgba(11, 18, 32, 0.09);
+  --glass:     rgba(255, 255, 255, 0.72);
+  --glow:      0 0 0 1px rgba(47, 75, 216, 0.18), 0 6px 20px rgba(47, 75, 216, 0.18);
+}
+
+/* ---------- 底層:一層極淡的極光,靜止不動,不搶戲 ---------- */
+
+html[data-theme="aurora"] body {
+  background:
+    radial-gradient(1100px 520px at 12% -8%,  rgba(47, 75, 216, 0.09), transparent 60%),
+    radial-gradient(900px 480px at 92% 4%,    rgba(18, 179, 166, 0.08), transparent 62%),
+    var(--paper-warm);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 數字等寬。積分、倒數、名次跳動時寬度不會抖。 */
+html[data-theme="aurora"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---------- 頁首:深色玻璃 ---------- */
+
+html[data-theme="aurora"] .app-header {
+  background: linear-gradient(180deg, #0a1020 0%, #101a33 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+html[data-theme="aurora"] .brand-mark {
+  letter-spacing: 0.06em;
+  background: linear-gradient(92deg, #ffffff 0%, #b9c7ff 55%, #7ce0d2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+html[data-theme="aurora"] .brand-tagline {
+  letter-spacing: 0.26em;
+  opacity: 0.55;
+}
+
+/* ---------- 面板:白玻璃 + 髮絲邊 ---------- */
+
+html[data-theme="aurora"] .panel-card,
+html[data-theme="aurora"] .student-sidebar,
+html[data-theme="aurora"] .quiz-card,
+html[data-theme="aurora"] .quiz-create-form,
+html[data-theme="aurora"] .shop-create-form,
+html[data-theme="aurora"] .prize-card,
+html[data-theme="aurora"] .student-quiz-card,
+html[data-theme="aurora"] .tg-setup,
+html[data-theme="aurora"] .tq-form,
+html[data-theme="aurora"] .hex-map-wrap,
+html[data-theme="aurora"] .war-question,
+html[data-theme="aurora"] .war-header,
+html[data-theme="aurora"] .toolbar {
+  background: var(--glass);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- 控制項:收圓角、收線寬 ---------- */
+
+html[data-theme="aurora"] .btn {
+  border-radius: 8px;
+  letter-spacing: 0.02em;
+  transition: transform 0.15s var(--ease-out), box-shadow 0.2s var(--ease-out),
+              background 0.2s var(--ease-out);
+}
+
+html[data-theme="aurora"] .btn-primary {
+  background: linear-gradient(180deg, #3d59e8 0%, #2f4bd8 100%);
+  border-color: transparent;
+  box-shadow: var(--glow);
+}
+
+html[data-theme="aurora"] .btn-primary:hover {
+  background: linear-gradient(180deg, #4a64ec 0%, #3550dd 100%);
+  transform: translateY(-1px);
+}
+
+html[data-theme="aurora"] .btn-accent {
+  background: linear-gradient(180deg, #c99a30 0%, #b78b2a 100%);
+  border-color: transparent;
+}
+
+html[data-theme="aurora"] .btn:active { transform: translateY(0); }
+
+html[data-theme="aurora"] input,
+html[data-theme="aurora"] select,
+html[data-theme="aurora"] textarea,
+html[data-theme="aurora"] .rule-editor-input,
+html[data-theme="aurora"] .custom-points-input {
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.9);
+  transition: border-color 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
+}
+
+html[data-theme="aurora"] input:focus,
+html[data-theme="aurora"] select:focus,
+html[data-theme="aurora"] textarea:focus {
+  outline: none;
+  border-color: var(--forest-light);
+  box-shadow: 0 0 0 3px rgba(47, 75, 216, 0.14);
+}
+
+/* ---------- 分頁:底線用滑動的實線,不用整塊色底 ---------- */
+
+/* 未選中的分頁原本是 --moss,在深藍底上對比只有 3.06,達不到 4.5。
+   加亮到 #aab6cc(對比 7.2),選中的仍然靠底色區分。 */
+html[data-theme="aurora"] .nav-tab {
+  color: #aab6cc;
+  letter-spacing: 0.02em;
+  border-radius: 8px;
+}
+
+html[data-theme="aurora"] .nav-tab.active {
+  background: linear-gradient(180deg, #3d59e8 0%, #2f4bd8 100%);
+  color: #fff;
+  box-shadow: var(--glow);
+}
+
+html[data-theme="aurora"] .brand-tagline { color: #98a5bd; }
+
+html[data-theme="aurora"] .sub-tab {
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+html[data-theme="aurora"] .sub-tab.active {
+  background: linear-gradient(180deg, #3d59e8 0%, #2f4bd8 100%);
+  box-shadow: var(--glow);
+}
+
+/* ---------- 深色舞台:計時器 / 投影 / 學生頁首 ---------- */
+
+html[data-theme="aurora"] .timer-stage,
+html[data-theme="aurora"] .selected-student-card,
+html[data-theme="aurora"] .shop-header-card,
+html[data-theme="aurora"] .my-rank-card {
+  background:
+    radial-gradient(680px 300px at 18% -30%, rgba(79, 107, 240, 0.35), transparent 62%),
+    linear-gradient(160deg, #0a1020 0%, #111c38 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+}
+
+html[data-theme="aurora"] .projector-view {
+  background:
+    radial-gradient(900px 420px at 50% -10%, rgba(79, 107, 240, 0.28), transparent 60%),
+    linear-gradient(180deg, #070c17 0%, #0d1730 100%);
+}
+
+html[data-theme="aurora"] .student-header {
+  background: linear-gradient(180deg, #0a1020 0%, #101a33 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme="aurora"] .timer-display {
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 42px rgba(124, 224, 210, 0.28);
+}
+
+html[data-theme="aurora"] .timer-control-btn.primary {
+  background: linear-gradient(180deg, #ffd479 0%, #d2a13a 100%);
+  border-color: transparent;
+  box-shadow: 0 0 0 1px rgba(255, 212, 121, 0.35), 0 8px 26px rgba(210, 161, 58, 0.35);
+}
+
+/* ---------- 進度與量條 ---------- */
+
+html[data-theme="aurora"] .progress-bar,
+html[data-theme="aurora"] .standing-bar,
+html[data-theme="aurora"] .task-progress-bar,
+html[data-theme="aurora"] .student-progress {
+  background: rgba(11, 18, 32, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+html[data-theme="aurora"] .progress-fill {
+  background: linear-gradient(90deg, #2f4bd8 0%, #12b3a6 100%);
+}
+
+/* ---------- 表格:只留橫線 ---------- */
+
+html[data-theme="aurora"] .quiz-results-table th {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  text-transform: none;
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--hairline);
+}
+
+html[data-theme="aurora"] .quiz-results-table td {
+  border-bottom: 1px solid rgba(11, 18, 32, 0.05);
+}
+
+/* ---------- 頒獎台:金屬感 ---------- */
+
+html[data-theme="aurora"] .podium-block {
+  border-radius: 8px 8px 0 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* ---------- 對話框 ---------- */
+
+html[data-theme="aurora"] .modal-overlay {
+  background: rgba(8, 13, 24, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+html[data-theme="aurora"] .modal {
+  border-radius: 14px;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lg);
+}
+
+html[data-theme="aurora"] .toast {
+  border-radius: 10px;
+  background: linear-gradient(180deg, #111a33 0%, #0a1020 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+/* ---------- 領地地圖:太空感的海面 ---------- */
+
+html[data-theme="aurora"] .hex-map-scroll {
+  background:
+    radial-gradient(700px 380px at 50% 0%, rgba(47, 75, 216, 0.16), transparent 65%),
+    repeating-linear-gradient(45deg, #060b16, #060b16 14px, #0a1120 14px, #0a1120 28px);
+}
+
+/* ---------- 動效:只在該有的地方 ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme="aurora"] .quiz-card,
+  html[data-theme="aurora"] .prize-card,
+  html[data-theme="aurora"] .student-quiz-card {
+    transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+  }
+  html[data-theme="aurora"] .prize-card:not(.disabled):hover,
+  html[data-theme="aurora"] .student-quiz-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* ---------- 金色的兩種處境 ----------
+   金色在深色面板上很好看,但放在白卡片上只有 3.1 的對比,
+   小字會讀不清楚。所以分成兩個值:底色用 --gold,文字用 --gold-ink。 */
+
+html[data-theme="aurora"] .shop-item-price::before,
+html[data-theme="aurora"] .student-pet-stage,
+html[data-theme="aurora"] .text-gold {
+  color: var(--gold-ink);
+}
+
+/* 學生端分頁列在極光主題下是藍底,金色要提亮才看得見 */
+html[data-theme="aurora"] .student-tab.war { color: #ffd479; }
+
+html[data-theme="aurora"] .student-tabs {
+  background: linear-gradient(180deg, #101a33 0%, #0a1020 100%);
+}
+
+/* ---------- 空狀態:別再是一大塊深色 ---------- */
+
+html[data-theme="aurora"] .selected-student-card:has(.empty-state) {
+  background: var(--glass);
+  border: 1px dashed var(--paper-shadow);
+  box-shadow: none;
+}
+
+html[data-theme="aurora"] .selected-student-card:has(.empty-state) .empty-state {
+  color: var(--ink-muted) !important;
+}

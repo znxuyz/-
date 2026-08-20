@@ -21,6 +21,7 @@ function renderAll() {
   renderRulesEditor();
   renderOverview();
   renderSettings();
+  updateTimerDisplay();
 }
 
 /* ============================================

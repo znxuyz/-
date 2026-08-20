@@ -28,6 +28,8 @@ function setCustomTimer() {
 
 function updateTimerDisplay() {
   const display = document.getElementById('timerDisplay');
+  // 起始畫面也要跑一次,否則播放鍵是空的(圖示是這裡塞進去的)
+  if (!display) return;
   display.textContent = formatTime(state.timer.seconds);
   
   display.classList.remove('warning', 'finished');

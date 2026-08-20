@@ -6,6 +6,7 @@ function renderSettings() {
   document.getElementById('settingsTeacherName').value = state.teacherName;
   document.getElementById('settingsStudents').value = state.students.map(s => s.name).join('\n');
   loadApiKeyToUI();
+  renderThemeChoice();
 }
 
 function saveSettings() {
@@ -52,4 +53,24 @@ async function resetAll() {
 
   Storage.clear(state.classId);
   location.reload();
+}
+
+/* ============================================
+   外觀主題
+   ────────────────────────────────────────────
+   只是換 <html data-theme>,樣式全在 css/theme-aurora.css 裡,
+   所以切換不需要重新載入,也不會動到任何資料。
+============================================ */
+function setTheme(name) {
+  document.documentElement.dataset.theme = name;
+  localStorage.setItem('guardian_theme', name);
+  renderThemeChoice();
+  toast(name === 'aurora' ? '已切換為「極光」' : '已切換為「紙感」');
+}
+
+function renderThemeChoice() {
+  const now = document.documentElement.dataset.theme || 'aurora';
+  document.querySelectorAll('[data-theme-pick]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.themePick === now);
+  });
 }
