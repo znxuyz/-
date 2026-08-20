@@ -147,6 +147,34 @@ service cloud.firestore {
          · 學生只能建立/修改 id 為 {quizId}__{自己的uid} 的那一份
          · 而且文件裡的 uid 欄位必須等於自己,不能偽造成別人
          · 老師可以讀全部(要批改),但不能代寫 */
+      /* 逐題搶答:一題一份文件,只能建立不能修改。
+         · 文件 id 綁定「哪份測驗 + 誰 + 哪一題」,所以同一題只能答一次
+         · 時間戳必須是伺服器時間,學生無法把自己的作答時間改早
+         · 測驗要在開放中
+         正確與否不在這裡判斷 —— 答案留在老師手上,結算時才批改,
+         所以規則不需要、也不會碰到正確答案。 */
+      match /qanswers/{ansId} {
+        function isClassTeacher() {
+          return signedIn()
+            && get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+        }
+        function quizOpen() {
+          return get(/databases/$(database)/documents/classes/$(classId)/quizzes/$(request.resource.data.quizId)).data.status == 'open';
+        }
+
+        allow create: if signedIn()
+          && request.resource.data.uid == request.auth.uid
+          && ansId == request.resource.data.quizId + '__' + request.auth.uid
+                      + '__' + request.resource.data.questionId
+          && request.resource.data.at == request.time
+          && quizOpen();
+
+        allow read: if isClassTeacher()
+                    || (signedIn() && resource.data.uid == request.auth.uid);
+        allow update: if false;
+        allow delete: if isClassTeacher();
+      }
+
       match /submissions/{subId} {
         function isMine() {
           return signedIn()

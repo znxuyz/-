@@ -324,6 +324,60 @@ const Cloud = {
     return [...map.values()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   },
 
+  /* ---------- 逐題搶答 ----------
+     每一題各自是一份文件,id 固定為 {quizId}__{uid}__{題目id},
+     時間戳由伺服器蓋(規則會驗 at == request.time),而且只能建立不能修改。
+
+     為什麼不寫進同一份作答文件?因為「每題誰最快」要比的是每一題各自的
+     時間。時間如果放在同一份文件裡由學生更新,學生就能把時間改早;
+     一題一份、只准建立,順序才偽造不了。 */
+  async sendQuizAnswer(classId, quizId, uid, payload) {
+    await this.db.collection('classes').doc(classId)
+      .collection('qanswers').doc(`${quizId}__${uid}__${payload.questionId}`)
+      .set({
+        ...payload,
+        quizId,
+        uid,
+        at: firebase.firestore.FieldValue.serverTimestamp()
+      });
+  },
+
+  /* 學生自己答過哪幾題(重新整理、換裝置都算數) */
+  async listMyQuizAnswers(classId, quizId, uid) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('qanswers')
+      .where('quizId', '==', quizId).where('uid', '==', uid).get();
+    const out = {};
+    snap.docs.forEach(d => { out[d.data().questionId] = d.data(); });
+    return out;
+  },
+
+  /* 老師端結算與即時人數用。依伺服器時間排序,先後由伺服器認定。 */
+  watchQuizAnswers(classId, quizId, cb) {
+    return this.db.collection('classes').doc(classId)
+      .collection('qanswers').where('quizId', '==', quizId)
+      .onSnapshot(snap => {
+        const list = [];
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (!data.at || typeof data.at.toMillis !== 'function') return;
+          list.push({ id: d.id, ...data, at: data.at.toMillis() });
+        });
+        list.sort((a, b) => a.at - b.at);
+        cb(list);
+      }, err => console.warn('[測驗] 逐題作答監聽中斷:', err.message));
+  },
+
+  async listQuizAnswers(classId, quizId) {
+    const snap = await this.db.collection('classes').doc(classId)
+      .collection('qanswers').where('quizId', '==', quizId).get();
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(a => a.at && typeof a.at.toMillis === 'function')
+      .map(a => ({ ...a, at: a.at.toMillis() }))
+      .sort((a, b) => a.at - b.at);
+  },
+
   /* 學生交卷。文件 id 固定為 quizId__uid,
      所以同一位學生重交也只會蓋掉自己那一份,不影響別人。
 

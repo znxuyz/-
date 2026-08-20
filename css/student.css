@@ -265,6 +265,76 @@
   font-weight: 700;
 }
 
+/* 搶到名次的那一題,格子換成金色並顯示名次 */
+.qmark.won {
+  background: var(--gold);
+  color: #fff;
+}
+
+.sqr-legend {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 6px;
+}
+
+/* ---------- 逐題搶答 ---------- */
+
+.qrace-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.qrace-progress {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--forest);
+}
+
+.qrace-hint { font-size: 12px; color: var(--ink-muted); }
+
+/* 一題一個點,看得到自己走到哪 */
+.qrace-track {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 16px;
+}
+
+.qrace-dot {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--paper-shadow);
+}
+
+.qrace-dot.done { background: var(--forest-light); }
+.qrace-dot.now  { background: var(--sunset); }
+
+.qrace-done { text-align: center; padding: 40px 20px; }
+
+.qrace-done-mark {
+  font-size: 46px;
+  color: var(--forest-light);
+  line-height: 1;
+}
+
+.qrace-done-text {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  margin-top: 12px;
+}
+
+.qrace-done-note {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-top: 6px;
+}
+
 .qmark.ok   { background: rgba(74, 124, 98, 0.18);  color: var(--forest); }
 .qmark.no   { background: rgba(194, 91, 78, 0.16);  color: var(--sick); }
 .qmark.skip { background: var(--paper-shadow);      color: var(--ink-muted); }

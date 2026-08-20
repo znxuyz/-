@@ -66,7 +66,10 @@ function setSettleTonight() {
 /* 選了「只有前幾名得分」才需要填名額 */
 function toggleTopNInput() {
   const mode = document.getElementById('quizScoreMode').value;
-  document.getElementById('quizTopNField').style.display = mode === 'topN' ? '' : 'none';
+  const mode2 = mode === 'topN' || mode === 'perQuestion';
+  document.getElementById('quizTopNField').style.display = mode2 ? '' : 'none';
+  document.getElementById('quizTopNLabel').textContent =
+    mode === 'perQuestion' ? '每題前幾名' : '前幾名';
 }
 
 function getQuiz(quizId) {
@@ -219,6 +222,8 @@ async function collectQuizResults(quizId, opts) {
 }
 
 async function runCollect(quiz, quizId, silent) {
+  if (quiz.scoreMode === 'perQuestion') return runCollectPerQuestion(quiz, quizId, silent);
+
   if (!silent) toast('讀取中…');
   let submissions;
   try {
@@ -300,6 +305,84 @@ async function runCollect(quiz, quizId, silent) {
   }
 }
 
+/* 逐題搶答的結算。
+   和整份測驗排名的差別:名次是「每一題各自」算的 ——
+   第 1 題最快答對的前 N 位得分,第 2 題重新比一次。
+   每題各自有伺服器蓋的時間戳,所以先後不受學生裝置時鐘影響。 */
+async function runCollectPerQuestion(quiz, quizId, silent) {
+  if (!silent) toast('讀取中…');
+  let answers;
+  try {
+    answers = await Cloud.listQuizAnswers(state.classId, quizId);   // 已依時間排序
+  } catch (e) {
+    console.error(e);
+    if (!silent) toast('讀取失敗:' + e.message);
+    return;
+  }
+
+  const topN = quiz.topN || 1;
+  const per = {};      // { studentId: { score, marks[], ranks[], points } }
+  const touch = id => (per[id] = per[id] || { score: 0, marks: [], ranks: [], points: 0 });
+  state.students.forEach(s => {
+    const p = touch(s.id);
+    p.marks = quiz.questions.map(() => '-');
+    p.ranks = quiz.questions.map(() => 0);
+  });
+
+  quiz.questions.forEach((q, qi) => {
+    let winners = 0;
+    answers.filter(a => a.questionId === q.id).forEach(a => {
+      const p = per[a.studentId];
+      if (!p) return;                                  // 已被刪除的學生
+      const correct = isAnswerCorrect(q, a.answer);
+      p.marks[qi] = correct ? '1' : '0';
+      if (!correct) return;
+      p.score++;
+      winners++;
+      if (winners <= topN) {                           // 這一題的前 N 名
+        p.ranks[qi] = winners;
+        p.points += quiz.pointsPerQuestion;
+      }
+    });
+  });
+
+  let newlyAwarded = 0;
+  let totalPoints = 0;
+
+  state.students.forEach(student => {
+    const p = per[student.id];
+    if (!p || p.marks.every(m => m === '-')) return;    // 完全沒作答
+    if (!student.quizResults) student.quizResults = {};
+    if (student.quizResults[quizId]) return;            // 已結算過
+
+    student.quizResults[quizId] = {
+      score: p.score,
+      total: quiz.questions.length,
+      awarded: p.points,
+      marks: p.marks.join(''),
+      qRanks: p.ranks.join(','),      // 每題各自的名次,0 = 沒進得分名額
+      at: Date.now()
+    };
+
+    if (p.points > 0) {
+      const fast = p.ranks.filter(r => r > 0).length;
+      applyPointsToStudent(student.id, p.points,
+        `測驗「${quiz.title}」有 ${fast} 題搶到前 ${topN} 名`);
+      totalPoints += p.points;
+    }
+    newlyAwarded++;
+  });
+
+  save();
+  renderAll();
+
+  if (newlyAwarded === 0) {
+    if (!silent) toast('目前的作答都已結算過');
+  } else {
+    toast(`✦ 逐題結算 ${newlyAwarded} 位學生,共發出 ${totalPoints} 分`);
+  }
+}
+
 /* ============================================
    即時監聽開放中的測驗
    ────────────────────────────────────────────
@@ -317,6 +400,14 @@ async function settleNow(quizId) {
   save();
   await collectQuizResults(quizId, { force: true });
   renderQuizList();
+}
+
+function scoreModeLabel(quiz) {
+  if (quiz.scoreMode === 'perQuestion') {
+    return `<strong>逐題搶答 · 每題前 ${quiz.topN} 名</strong>`;
+  }
+  if (quiz.scoreMode === 'topN') return `<strong>整份前 ${quiz.topN} 名得分</strong>`;
+  return '答對就得分';
 }
 
 /* 結算時間顯示成「8/21 00:00」 */
@@ -372,8 +463,13 @@ const QuizWatch = {
 
     open.forEach(id => {
       if (this.unsubs[id]) return;
-      this.unsubs[id] = Cloud.watchSubmissions(state.classId, id, subs => {
-        this.live[id] = subs;
+      // 逐題搶答沒有「交卷」這個動作,進度看的是逐題作答的文件
+      const quiz = getQuiz(id);
+      const watch = quiz && quiz.scoreMode === 'perQuestion'
+        ? Cloud.watchQuizAnswers : Cloud.watchSubmissions;
+
+      this.unsubs[id] = watch.call(Cloud, state.classId, id, rows => {
+        this.live[id] = rows;
         this.renderCount(id);
         if (this.autoSettle[id]) {
           collectQuizResults(id, { silent: true }).then(() => renderQuizList());
@@ -400,8 +496,17 @@ const QuizWatch = {
   renderCount(quizId) {
     const el = document.getElementById('liveCount_' + quizId);
     if (!el) return;
-    const n = (this.live[quizId] || []).length;
-    el.textContent = n > 0 ? `${n} 人已交卷` : '尚無人交卷';
+    const rows = this.live[quizId] || [];
+    const quiz = getQuiz(quizId);
+    let n, label;
+    if (quiz && quiz.scoreMode === 'perQuestion') {
+      n = new Set(rows.map(r => r.studentId)).size;
+      label = n > 0 ? `${n} 人作答中 · 共 ${rows.length} 題次` : '尚無人作答';
+    } else {
+      n = rows.length;
+      label = n > 0 ? `${n} 人已交卷` : '尚無人交卷';
+    }
+    el.textContent = label;
     el.classList.toggle('has-submissions', n > 0);
   },
 
@@ -424,16 +529,17 @@ function markSubmission(quiz, answers) {
   return quiz.questions.map(q => {
     const given = answers[q.id];
     if (given === undefined || given === null || given === '') return '-';
-
-    if (q.type === 'choice') {
-      return Number(given) === Number(q.answer) ? '1' : '0';
-    }
-    if (q.type === 'truefalse') {
-      return Boolean(given) === Boolean(q.answer) ? '1' : '0';
-    }
-    const norm = v => String(v).trim().replace(/\s+/g, '').toLowerCase();
-    return norm(given) === norm(q.answer) ? '1' : '0';
+    return isAnswerCorrect(q, given) ? '1' : '0';
   }).join('');
+}
+
+/* 一題答得對不對。簡答題忽略大小寫、前後空白與全形空白。 */
+function isAnswerCorrect(q, given) {
+  if (given === undefined || given === null || given === '') return false;
+  if (q.type === 'choice') return Number(given) === Number(q.answer);
+  if (q.type === 'truefalse') return Boolean(given) === Boolean(q.answer);
+  const norm = v => String(v).trim().replace(/\s+/g, '').toLowerCase();
+  return norm(given) === norm(q.answer);
 }
 
 /* 批改一份作答,回傳答對題數 */
@@ -484,9 +590,7 @@ function renderQuizList() {
           <div class="quiz-card-title">${escapeHtml(quiz.title)}</div>
           <div class="quiz-card-meta">
             ${quiz.questions.length} 題 · 每題 ${quiz.pointsPerQuestion} 分
-            · ${quiz.scoreMode === 'topN'
-                ? `<strong>前 ${quiz.topN} 名得分</strong>`
-                : '答對就得分'}
+            · ${scoreModeLabel(quiz)}
             ${quiz.dueDate ? ' · 截止 ' + quiz.dueDate : ''}
             ${quiz.settleAt
               ? ` · <strong class="quiz-settle-at">${Date.now() < quiz.settleAt
@@ -599,14 +703,20 @@ function renderQuizEditor(quiz) {
 }
 
 function renderQuizResults(quiz) {
+  const race = quiz.scoreMode === 'perQuestion';
+
   const rows = state.students
     .filter(s => s.quizResults && s.quizResults[quiz.id])
     .map(s => ({ s, r: s.quizResults[quiz.id] }))
-    .sort((a, b) => (a.r.rank || 999) - (b.r.rank || 999))
+    // 逐題搶答沒有整份的名次,改用得分高低排
+    .sort((a, b) => race
+      ? (b.r.awarded - a.r.awarded || b.r.score - a.r.score)
+      : (a.r.rank || 999) - (b.r.rank || 999))
     .map(({ s, r }) => {
       const pct = r.total > 0 ? Math.round(r.score / r.total * 100) : 0;
+      const fast = (r.qRanks || '').split(',').filter(x => Number(x) > 0).length;
       return `<tr class="${r.awarded > 0 ? '' : 'no-award'}">
-        <td>${r.rank || '—'}</td>
+        <td>${race ? (fast > 0 ? fast + ' 題' : '—') : (r.rank || '—')}</td>
         <td>${escapeHtml(s.seatNumber || '')}</td>
         <td>${escapeHtml(s.name)}</td>
         <td>${r.score}/${r.total}</td>
@@ -621,9 +731,14 @@ function renderQuizResults(quiz) {
 
   return `<div class="quiz-results">
     <table class="quiz-results-table">
-      <thead><tr><th>名次</th><th>座號</th><th>姓名</th><th>答對</th><th>正確率</th><th>獲得</th></tr></thead>
+      <thead><tr><th>${race ? '搶到' : '名次'}</th><th>座號</th><th>姓名</th>
+        <th>答對</th><th>正確率</th><th>獲得</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    ${race
+      ? `<div class="quiz-results-note">「搶到」= 有幾題擠進該題的前 ${quiz.topN} 名答對者。
+           每題各自比快,時間以伺服器記錄的作答時間為準。</div>`
+      : ''}
     ${quiz.scoreMode === 'topN'
       ? `<div class="quiz-results-note">名次以答對題數排序,同分者先交卷的在前。只有前 ${quiz.topN} 名且有答對的學生得分。</div>`
       : ''}
