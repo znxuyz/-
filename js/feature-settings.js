@@ -4,7 +4,8 @@
 function renderSettings() {
   document.getElementById('settingsClassName').value = state.className;
   document.getElementById('settingsTeacherName').value = state.teacherName;
-  document.getElementById('settingsStudents').value = state.students.map(s => s.name).join('\n');
+  document.getElementById('settingsStudents').value =
+    state.students.map(s => [s.seatNumber || '', s.name, s.email || ''].join(',')).join('\n');
   loadApiKeyToUI();
   renderThemeChoice();
 }
@@ -17,20 +18,83 @@ function saveSettings() {
   toast('已儲存');
 }
 
+/* 一行 = 一位學生:座號,姓名,信箱
+   分隔符號逗號、全形逗號、Tab 都接受;只填姓名也可以。 */
+function parseRosterLine(line) {
+  const parts = line.split(/[,、\t]/).map(s => s.trim());
+
+  // 只寫了名字的那一行,座號與信箱回傳 null(= 沒提供),不是空字串(= 清空)。
+  // 不這樣分的話,老師習慣性貼一份純名單就會把全班的座號和信箱洗掉。
+  if (parts.length === 1) return { seatNumber: null, name: parts[0], email: null };
+
+  // 有些人習慣把姓名放前面。哪一格看起來像信箱就當信箱,
+  // 純數字的那格就是座號,剩下的是姓名 —— 順序寫反也不會壞。
+  const email = parts.find(p => p.includes('@')) || '';
+  const rest = parts.filter(p => p !== email && p !== '');
+  const seat = rest.find(p => /^\d{1,3}$/.test(p)) || '';
+  const name = rest.filter(p => p !== seat).join(' ') || rest[0] || '';
+
+  return { seatNumber: seat, name, email };
+}
+
 function updateStudents() {
   const text = document.getElementById('settingsStudents').value.trim();
-  const newNames = text.split('\n').map(s => s.trim()).filter(s => s);
-  
-  // 保留現有學生(用名字比對),新增不存在的
-  const existing = new Map(state.students.map(s => [s.name, s]));
-  const updated = newNames.map((name, i) => {
-    return existing.get(name) || createStudent(name, Date.now() + i);
+  const rows = text.split('\n').map(l => l.trim()).filter(l => l).map(parseRosterLine)
+    .filter(r => r.name);
+
+  if (rows.length === 0) { toast('名單是空的'); return; }
+
+  const dupSeat = rows.map(r => r.seatNumber).filter(Boolean);
+  if (new Set(dupSeat).size !== dupSeat.length) {
+    if (!confirm('有重複的座號,還是要更新嗎?')) return;
+  }
+
+  /* 比對順序:信箱 → 座號 → 姓名。
+     這樣改名字的學生仍然接得回原本的守護獸與積分 ——
+     只用姓名比對的話,改個字就等於變成新學生,積分全部歸零。 */
+  const byEmail = new Map(), bySeat = new Map(), byName = new Map();
+  state.students.forEach(s => {
+    if (s.email) byEmail.set(s.email.trim().toLowerCase(), s);
+    if (s.seatNumber) bySeat.set(String(s.seatNumber), s);
+    byName.set(s.name, s);
   });
-  
+
+  const used = new Set();
+  const pick = r => {
+    const hit = (r.email && byEmail.get(r.email.toLowerCase()))
+             || (r.seatNumber && bySeat.get(String(r.seatNumber)))
+             || byName.get(r.name);
+    if (!hit || used.has(hit.id)) return null;
+    used.add(hit.id);
+    return hit;
+  };
+
+  const updated = rows.map((r, i) => {
+    const s = pick(r);
+    if (!s) {
+      const fresh = createStudent(r.name, Date.now() + i);
+      fresh.seatNumber = r.seatNumber || '';
+      fresh.email = r.email || '';
+      return fresh;
+    }
+    s.name = r.name;
+    if (r.seatNumber !== null) s.seatNumber = r.seatNumber;
+    if (r.email !== null) s.email = r.email;
+    return s;
+  });
+
+  const removed = state.students.length - used.size;
+  const added = updated.length - used.size;
   state.students = updated;
   save();
   renderAll();
-  toast('學生名單已更新');
+
+  toast(`名單已更新:${updated.length} 位` +
+        (added > 0 ? `,新增 ${added}` : '') +
+        (removed > 0 ? `,移除 ${removed}` : ''));
+
+  // 信箱可能改了,學生的登入對應要跟著更新
+  syncRosterAfterImport();
 }
 
 async function resetAll() {
